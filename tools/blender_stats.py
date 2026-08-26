@@ -4,9 +4,35 @@
 # Triangle counts are taken from the EVALUATED mesh, so subdivision and
 # array modifiers are counted at their real cost — that is what ships.
 
-import bpy
+import bpy, os
 
 scene = bpy.context.scene
+
+# ---------------------------------------------------------------- libraries
+# Linked (not appended) assets live in OTHER .blend files. If those files are
+# not on this machine, their geometry does not exist here and cannot export.
+print("\n" + "=" * 74)
+print("LINKED LIBRARIES")
+print("=" * 74)
+missing_libs, ok_libs = [], []
+for lib in bpy.data.libraries:
+    path = bpy.path.abspath(lib.filepath)
+    (ok_libs if os.path.exists(path) else missing_libs).append(lib.filepath)
+
+if not bpy.data.libraries:
+    print("none - everything is local to this file. Good.")
+else:
+    print(f"found  : {len(ok_libs)}")
+    print(f"MISSING: {len(missing_libs)}")
+    for p in missing_libs[:25]:
+        print(f"   x  {p}")
+    if len(missing_libs) > 25:
+        print(f"   ... and {len(missing_libs) - 25} more")
+
+linked_objs = [o for o in scene.objects if o.library or
+               (o.data and getattr(o.data, "library", None))]
+print(f"\nobjects that come from a library: {len(linked_objs)}")
+
 depsgraph = bpy.context.evaluated_depsgraph_get()
 
 rows = []

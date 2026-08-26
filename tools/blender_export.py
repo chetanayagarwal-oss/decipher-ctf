@@ -9,10 +9,25 @@
 #
 # Cameras and lights are dropped — the website does its own lighting.
 
-import bpy, sys
+import bpy, sys, os
 
 argv = sys.argv
 argv = argv[argv.index("--") + 1:] if "--" in argv else []
+
+# Refuse to export silently when linked assets are absent: their geometry is
+# not in this file, so they would vanish from the GLB without any error.
+missing = [l.filepath for l in bpy.data.libraries
+           if not os.path.exists(bpy.path.abspath(l.filepath))]
+if missing:
+    print("\n" + "!" * 70)
+    print(f"WARNING: {len(missing)} linked librarie(s) are missing.")
+    print("Anything they provided will NOT be in the exported GLB.")
+    for p in missing[:10]:
+        print("   x  " + p)
+    if len(missing) > 10:
+        print(f"   ... and {len(missing) - 10} more")
+    print("Exporting anyway with whatever is local to this file.")
+    print("!" * 70 + "\n")
 
 out = argv[0] if argv else "/tmp/plaza.glb"
 decimate = float(argv[1]) if len(argv) > 1 else 0.0
