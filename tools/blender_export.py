@@ -31,6 +31,8 @@ if missing:
 
 out = argv[0] if argv else "/tmp/plaza.glb"
 decimate = float(argv[1]) if len(argv) > 1 else 0.0
+# Comma-separated name fragments to delete outright, e.g. "bq_Tree,bq_Shrub".
+drop = [s for s in (argv[2].split(",") if len(argv) > 2 else []) if s]
 
 scene = bpy.context.scene
 
@@ -38,6 +40,18 @@ scene = bpy.context.scene
 for ob in list(scene.objects):
     if ob.type in {"CAMERA", "LIGHT"}:
         bpy.data.objects.remove(ob, do_unlink=True)
+
+# Drop objects by name fragment. Film-quality foliage (Botaniq and friends)
+# carries millions of triangles in leaf cards; decimating it produces mush,
+# so removing it wholesale beats trying to simplify it.
+if drop:
+    removed = 0
+    for ob in list(scene.objects):
+        if any(frag.lower() in ob.name.lower() for frag in drop):
+            print(f"[export] dropping {ob.name} ({len(ob.data.polygons) if ob.type=='MESH' else 0} faces)")
+            bpy.data.objects.remove(ob, do_unlink=True)
+            removed += 1
+    print(f"[export] removed {removed} object(s) matching {drop}")
 
 # Make sure nothing is hidden from the exporter for the wrong reason.
 for ob in scene.objects:
