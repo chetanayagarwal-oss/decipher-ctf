@@ -11,6 +11,10 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { buildSpace } from "./space.js";
+
+/* "space" (default, the homepage) or "plaza" (the /lnmiit-cp route). */
+const SCENE = window.DECIPHER_SCENE === "plaza" ? "plaza" : "space";
 
 const C = window.DECIPHER;
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -76,9 +80,11 @@ stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x08010f);
-// Loose enough to see across the plaza once it loads, dense enough that its
-// far edge dissolves instead of ending in a hard seam.
-scene.fog = new THREE.FogExp2(0x0d0620, 0.0032);
+// Space wants almost no fog or the planets grey out; the plaza wants enough
+// that its far edge dissolves instead of ending in a hard seam.
+scene.fog = SCENE === "plaza"
+  ? new THREE.FogExp2(0x0d0620, 0.0032)
+  : new THREE.FogExp2(0x08010f, 0.0016);
 
 /* The CRT sits on a bezel raked back 60°, so its normal points up-and-forward.
    Putting the eye above the screen line reads it nearly face-on — the angle you
@@ -617,21 +623,26 @@ function buildLights() {
 
 /* ================== floor ================== */
 function buildFloor() {
-  const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(160, 160),
-    new THREE.MeshStandardMaterial({ color: 0x0a0418, roughness: 0.35, metalness: 0.65 })
-  );
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -8.55;
-  floor.receiveShadow = true;
-  scene.add(floor);
+  // In space the cabinet floats: a ground plane there reads as a stray white
+  // slab under it. The floor exists only on the plaza route, where it stands in
+  // until the real plaza streams in.
+  if (SCENE === "plaza") {
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(160, 160),
+      new THREE.MeshStandardMaterial({ color: 0x0a0418, roughness: 0.35, metalness: 0.65 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -8.55;
+    floor.receiveShadow = true;
+    scene.add(floor);
 
-  const grid = new THREE.GridHelper(150, 60, 0x7b2cbf, 0x2a0a4d);
-  grid.position.y = -8.5;
-  grid.material.transparent = true;
-  grid.material.opacity = 0.32;
-  scene.add(grid);
-  placeholderGround = { floor, grid };
+    const grid = new THREE.GridHelper(150, 60, 0x7b2cbf, 0x2a0a4d);
+    grid.position.y = -8.5;
+    grid.material.transparent = true;
+    grid.material.opacity = 0.32;
+    scene.add(grid);
+    placeholderGround = { floor, grid };
+  }
 
   // drifting motes for depth
   const N = isMobile ? 120 : 260;
@@ -651,6 +662,7 @@ function buildFloor() {
   return motes;
 }
 let motes;
+let space = null;
 let placeholderGround = null;
 let plazaRoot = null;
 let plazaFade = 0;
@@ -663,8 +675,10 @@ const CABINET_UNITS_PER_METRE = 17 / 1.8;   // the cabinet is 17 units ≈ 1.8 m
 
 async function loadPlaza() {
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  // Root-absolute: this page also serves from /lnmiit-cp/, where a relative
+  // path would resolve into the subdirectory and 404.
   const gltf = await new Promise((res, rej) =>
-    loader.load("assets/models/plaza.glb", res, undefined, rej));
+    loader.load("/assets/models/plaza.glb", res, undefined, rej));
 
   const root = gltf.scene;
 
@@ -742,7 +756,7 @@ const srcFor = base => {
 };
 function startAudio() {
   try {
-    ambience = new Audio(srcFor("assets/audio/background_ambience"));
+    ambience = new Audio(srcFor("/assets/audio/background_ambience"));
     ambience.loop = true; ambience.volume = 0;
     ambience.play().then(() => {
       let v = 0;
@@ -752,7 +766,7 @@ function startAudio() {
         if (v >= 0.28) clearInterval(fade);
       }, 90);
     }).catch(() => {});
-    thump = new Audio(srcFor("assets/audio/thump_hover"));
+    thump = new Audio(srcFor("/assets/audio/thump_hover"));
     thump.volume = 0.45;
   } catch (e) { /* audio is optional */ }
 }
@@ -866,7 +880,7 @@ async function bootUp() {
       await document.fonts.ready.catch(() => {});
     }],
     ["mapping reflections…", async () => {
-      const loader = new THREE.CubeTextureLoader().setPath("assets/cubemap/");
+      const loader = new THREE.CubeTextureLoader().setPath("/assets/cubemap/");
       const env = await new Promise(res => {
         loader.load(["px.webp", "nx.webp", "py.webp", "ny.webp", "pz.webp", "nz.webp"],
           t => res(t), undefined, () => res(null));
@@ -876,7 +890,10 @@ async function bootUp() {
     }],
     ["assembling cabinet…", env => buildCabinet(scene.environment)],
     ["wiring the neon…", () => buildLights()],
-    ["laying the floor…", () => { motes = buildFloor(); }],
+    [SCENE === "plaza" ? "laying the floor…" : "seeding the starfield…", () => {
+      motes = buildFloor();
+      if (SCENE === "space") space = buildSpace(scene, { isMobile, envMap: scene.environment });
+    }],
     ["compiling shaders…", () => { drawScreen(0); screenTex.needsUpdate = true; renderer.compile(scene, camera); }]
   ];
 
@@ -899,9 +916,12 @@ bootStart.addEventListener("click", () => {
   reveal = 0; revealTarget = 1;
   syncReadout();
 
-  // Stream the plaza in behind the cabinet. Deliberately not awaited: the page
-  // is already interactive, and a failure here must not break the homepage.
-  loadPlaza().catch(err => console.warn("plaza unavailable, keeping grid:", err));
+  // Only the /lnmiit-cp route stands the cabinet on the real plaza. Deliberately
+  // not awaited: the page is already interactive, and a failure here must not
+  // break it — the grid floor simply stays.
+  if (SCENE === "plaza") {
+    loadPlaza().catch(err => console.warn("plaza unavailable, keeping grid:", err));
+  }
 });
 
 /* ================== render loop ================== */
@@ -936,6 +956,8 @@ function frame(now) {
   }
 
   stepSprings(now);
+
+  if (space) space.update(now);
 
   /* fade the plaza up once it has arrived */
   if (plazaRoot && plazaFade < 1) {
