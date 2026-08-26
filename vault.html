@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>THE WORLD — DECIPHER</title>
+<meta name="description" content="Walk the Decipher world — a 3D briefing of the campus CTF." />
+<meta name="theme-color" content="#08010f" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%2310002b'/%3E%3Ctext x='50' y='70' font-size='54' text-anchor='middle' fill='%23ff00ff' font-family='monospace' font-weight='bold'%3E%E2%97%87%3C/text%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:wght@400;600;700&family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/vault.css" />
+</head>
+<body>
+
+<div id="canvas-host"></div>
+
+<!-- ============ LOADING ============ -->
+<div class="loading-screen" id="loading-screen">
+  <div class="ls-half ls-top"></div>
+  <div class="ls-half ls-bottom"></div>
+  <div class="ls-center">
+    <p class="ls-eyebrow">DECIPHER <span class="s">//</span> <span data-date-label>—</span></p>
+    <h1 class="ls-title">THE WORLD</h1>
+    <div class="ls-progress" id="ls-progress">
+      <div class="ls-bar"><div class="ls-bar-fill" id="ls-bar-fill"></div></div>
+      <span class="ls-pct" id="ls-pct">0%</span>
+    </div>
+    <button class="ls-enter" id="ls-enter" hidden>▸ ENTER ◂</button>
+    <p class="ls-hint" id="ls-hint">decrypting geometry…</p>
+  </div>
+</div>
+
+<!-- ============ HUD ============ -->
+<a class="hud hud-back" href="index.html">← BACK TO THE CABINET</a>
+<button class="hud hud-sound" id="sound-toggle" aria-label="Toggle sound">♪ ON</button>
+
+<div class="hud hud-caption" id="caption" aria-live="polite">
+  <p class="caption-eyebrow" id="caption-eyebrow"></p>
+  <p class="caption-text" id="caption-text"></p>
+</div>
+
+<div class="hud hud-hint" id="move-hint">SCROLL OR DRAG TO MOVE THROUGH THE WORLD</div>
+
+<!-- ============ MODAL ============ -->
+<div class="modal-overlay" id="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
+    <p class="modal-eyebrow" id="modal-eyebrow"></p>
+    <h2 class="modal-title" id="modal-title"></h2>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<div class="webgl-fail" id="webgl-fail" hidden>
+  <p>This browser couldn't start WebGL, so the world can't open here.</p>
+  <a href="index.html">← Everything is on the cabinet</a>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script src="js/config.js"></script>
+<script type="module" src="js/vault.js"></script>
+</body>
+</html>

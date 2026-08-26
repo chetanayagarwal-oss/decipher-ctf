@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DECIPHER — Campus CTF</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:ital,wght@0,400;0,600;0,700;1,400&family=Montserrat:wght@900&family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-void: #10002b;
+    --bg-void-2: #240046;
+    --panel: #3c096c;
+    --panel-2: #5a189a;
+    --panel-3: #10002b;
+    --line: #7b2cbf; /* Purple border lines */
+    --green: #00ffcc; /* Neon Cyan-Green */
+    --green-dim: #009977;
+    --green-soft: rgba(0, 255, 204, 0.12);
+    --amber: #f43f5e; /* Neon pink/magenta */
+    --flag: #ff00ff; /* Glowing Magenta */
+    --text: #f5efff; /* Light purple-white text */
+    --muted: #cca3ad; /* Muted rose */
+    --muted-2: #5c1e28;
+    --font-display: 'Press Start 2P', monospace;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'Syncopate', sans-serif;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  html { scroll-behavior:smooth; }
+
+  body {
+    background: radial-gradient(circle at 50% 30%, #7b2cbf 0%, var(--bg-void) 70%, #080016 100%);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* ---------- ambient texture ---------- */
+  .grain {
+    position: fixed; inset:0; pointer-events:none; z-index:1;
+    background-image: radial-gradient(rgba(168, 85, 247, 0.08) 1px, transparent 1px);
+    background-size: 26px 26px;
+    mix-blend-mode: screen;
+  }
+  .vignette {
+    position: fixed; inset:0; pointer-events:none; z-index:1;
+    box-shadow: inset 0 0 16vw 2vw rgba(0,0,0,0.85);
+  }
+
+  .glyph {
+    position: absolute; font-family: var(--font-mono); font-size: 13px;
+    color: rgba(168, 85, 247, 0.25); opacity: .45; letter-spacing: 2px; user-select: none;
+    z-index: 2; pointer-events: none;
+  }
+  .crosshair {
+    position: absolute; width: 26px; height: 26px; z-index: 2; opacity: .4; pointer-events: none;
+  }
+  .crosshair::before, .crosshair::after {
+    content: ''; position: absolute; background: rgba(168, 85, 247, 0.25);
+  }
+  .crosshair::before { left: 50%; top: 0; width: 1px; height: 100%; transform: translateX(-50%); }
+  .crosshair::after { top: 50%; left: 0; height: 1px; width: 100%; transform: translateY(-50%); }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    position: relative; z-index: 10;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 28px clamp(18px, 4vw, 56px) 0;
+  }
+
+  .tagline-box {
+    position: relative;
+    border: 1px solid var(--line);
+    padding: 14px 18px;
+    max-width: 320px;
+    font-size: 11px;
+    line-height: 1.7;
+    letter-spacing: 0.5px;
+    color: #b39ddb;
+    text-transform: uppercase;
+  }
+  .tagline-box b { color: var(--green); font-weight: 600; }
+  .corner { position: absolute; width: 10px; height: 10px; border: 1.5px solid var(--line); }
+  .corner.tl { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+  .corner.tr { top: -1px; right: -1px; border-left: none; border-bottom: none; }
+  .corner.bl { bottom: -1px; left: -1px; border-right: none; border-top: none; }
+  .corner.br { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+  .nav-actions {
+    display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-end;
+  }
+  .btn {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 13px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform .15s ease, box-shadow .2s ease, background .2s ease, color .2s ease;
+    white-space: nowrap;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-ghost {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    color: var(--text);
+  }
+  .btn-ghost:hover {
+    background: rgba(168, 85, 247, 0.15);
+    box-shadow: 0 0 18px rgba(168, 85, 247, 0.25);
+    border-color: var(--text);
+  }
+  .btn-solid {
+    background: var(--green);
+    border: 1px solid var(--green);
+    color: #05020d;
+    box-shadow: 0 0 0 rgba(0, 255, 204, 0);
+  }
+  .btn-solid:hover {
+    box-shadow: 0 0 24px rgba(0, 255, 204, 0.55);
+    background: #46ffdb;
+  }
+  .btn-solid::before { content: '>_'; opacity: .7; }
+
+  /* ---------- background marquee text (Vibrant Purple Theme) ---------- */
+  .marquee-wrap {
+    position: absolute;
+    top: 25%;
+    left: 0; right: 0;
+    z-index: 2;
+    overflow: hidden;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent, black 15%, black 85%, transparent);
+    mask-image: linear-gradient(90deg, transparent, black 15%, black 85%, transparent);
+  }
+  .marquee-wrap.bottom {
+    top: 52%;
+  }
+  .marquee-track {
+    display: flex;
+    white-space: nowrap;
+    animation: scrollLeft 32s linear infinite;
+    will-change: transform;
+  }
+  .marquee-wrap.bottom .marquee-track {
+    animation: scrollRight 32s linear infinite;
+  }
+  .marquee-track span {
+    font-family: 'Syncopate', sans-serif;
+    font-weight: 700;
+    font-size: clamp(80px, 11vw, 140px);
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.08); /* White lettering scrolling behind */
+    padding: 0 45px;
+    letter-spacing: 6px;
+  }
+  @keyframes scrollLeft {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @keyframes scrollRight {
+    from { transform: translateX(-50%); }
+    to { transform: translateX(0); }
+  }
+
+  /* ---------- hero / stage ---------- */
+  .stage {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 20px 30px;
+    min-height: 82vh;
+    justify-content: center;
+  }
+
+  /* ---------- 3D viewport container ---------- */
+  .three-container-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 900px;
+    height: 600px;
+    margin: 0 auto;
+  }
+  #canvas3d-container {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .screen-hint-overlay {
+    position: absolute;
+    bottom: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: #b39ddb;
+    text-transform: uppercase;
+    pointer-events: none;
+    opacity: 0.7;
+    white-space: nowrap;
+  }
+
+  .stage-caption {
+    margin-top: 36px;
+    font-size: 10.5px;
+    letter-spacing: 2px;
+    color: #b39ddb;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  /* ---------- footer / register strip ---------- */
+  .register-strip {
+    position: relative; z-index: 5;
+    border-top: 1px solid var(--line);
+    background: rgba(16, 0, 43, 0.45);
+    backdrop-filter: blur(12px);
+    padding: 40px clamp(18px, 5vw, 64px) 46px;
+    display: flex; flex-wrap: wrap; gap: 28px;
+    align-items: center; justify-content: space-between;
+  }
+  .register-copy h2 {
+    font-family: var(--font-display);
+    font-size: 15px;
+    color: var(--text);
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+  }
+  .register-copy p {
+    font-size: 12px;
+    color: #b39ddb;
+    max-width: 440px;
+    line-height: 1.8;
+  }
+  .register-copy p b { color: var(--green); }
+  .footer-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+  .site-footer {
+    position: relative; z-index: 5;
+    text-align: center;
+    padding: 24px 18px 32px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(168, 85, 247, 0.5);
+    text-transform: uppercase;
+    border-top: 1px solid rgba(168, 85, 247, 0.1);
+  }
+
+  @media (max-width: 640px) {
+    .topbar { flex-direction: column; gap: 18px; align-items: stretch; }
+    .nav-actions { justify-content: flex-start; }
+    .marquee-track span { font-size: 56px; }
+    .marquee-wrap { top: 260px; height: 80px; }
+    .register-strip { flex-direction: column; align-items: flex-start; }
+    .glyph, .crosshair { display: none; }
+  }
+
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+</style>
+</head>
+<body>
+
+  <div class="grain"></div>
+  <div class="vignette"></div>
+
+  <!-- ambient decorations -->
+  <div class="glyph" style="top:8%; left:4%;">01001</div>
+  <div class="glyph" style="top:62%; left:3%;">{cipher}</div>
+  <div class="glyph" style="top:14%; right:6%; display:none;" id="glyph-r1">DEC{...}</div>
+  <div class="crosshair" style="top:22%; left:12%;"></div>
+  <div class="crosshair" style="top:70%; right:14%;"></div>
+  <div class="crosshair" style="top:12%; right:22%;"></div>
+
+  <header class="topbar">
+    <div class="tagline-box">
+      <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+      A CAMPUS-WIDE <b>CAPTURE THE FLAG</b>. CRACK THE CIPHER, CLIMB THE BOARD, CLAIM THE FLAG.
+    </div>
+    <nav class="nav-actions">
+      <a href="#register" class="btn btn-ghost">Register Team</a>
+      <a href="#register" class="btn btn-solid">Join Team</a>
+    </nav>
+  </header>
+
+  <!-- background marquee elements -->
+  <div class="marquee-wrap" aria-hidden="true">
+    <div class="marquee-track">
+      <span>DECIPHER</span><span>DECIPHER</span><span>DECIPHER</span><span>DECIPHER</span>
+      <span>DECIPHER</span><span>DECIPHER</span><span>DECIPHER</span><span>DECIPHER</span>
+    </div>
+  </div>
+  <div class="marquee-wrap bottom" aria-hidden="true">
+    <div class="marquee-track">
+      <span>DECIPHER</span><span>DECIPHER</span><span>DECIPHER</span><span>DECIPHER</span>
+      <span>DECIPHER</span><span>DECIPHER</span><span>DECIPHER</span><span>DECIPHER</span>
+    </div>
+  </div>
+
+  <main class="stage">
+    <!-- 3D Interactive Arcade Section -->
+    <div class="three-container-wrap">
+      <div id="canvas3d-container"></div>
+      <div class="screen-hint-overlay">Move mouse to point controls · Click to play</div>
+    </div>
+
+    <p class="stage-caption">Interact with the controller or screen to decrypt the rules</p>
+  </main>
+
+  <section class="register-strip">
+    <div class="register-copy" id="register">
+      <h2>REGISTER YOUR TEAM</h2>
+      <p>Team captains open a squad here — <b>2 to 4 members</b>, any branch, any year. You'll get an invite code to hand out to the rest of your crew.</p>
+    </div>
+    <div class="footer-actions">
+      <a href="#register" class="btn btn-solid">Register Team</a>
+      <a href="#register" class="btn btn-ghost">Join Team</a>
+    </div>
+  </section>
+
+  <footer class="site-footer">DECIPHER · Campus CTF · Organized by the Cybersecurity Club</footer>
+
+<!-- Load Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+<script>
+  // ---------- content states (Authentic rules based on last year's DECIPHER database) ----------
+  var states = [
+    { eyebrow:"", text:"WELCOME", hint:"Press the controller", small:false },
+    { eyebrow:"RULE 01", text:"NO ATTACKS: Do not attack the CTF infrastructure, players, or organizers.", hint:"Press for next rule", small:true },
+    { eyebrow:"RULE 02", text:"FLAG SHARING: Keep flags confidential; do not share them under any circumstances.", hint:"Press for next rule", small:true },
+    { eyebrow:"RULE 03", text:"PROMPT SUBMISSION: Submit flags immediately upon discovery to secure points.", hint:"Press for next rule", small:true },
+    { eyebrow:"RULE 04", text:"NO COLLABORATION: Collaborating with external individuals is strictly prohibited.", hint:"Press for next rule", small:true },
+    { eyebrow:"RULE 05", text:"NO BRUTE FORCE: Do not brute-force the scoreboard; focus on intended methods.", hint:"Press for next rule", small:true },
+    { eyebrow:"RULE 06", text:"NO SCANNERS: Automated scanners generating excessive traffic are banned.", hint:"Press for next rule", small:true },
+    { eyebrow:"", text:"GOOD LUCK, HACKER.", hint:"Press to start over", small:false }
+  ];
+
+  var idx = 0;
+  var isAnimating = false;
+  var scrambleChars = "!<>-_\\/[]{}=+*^?#01ABCDEF$%&";
+  var currentScreenText = states[0].text;
+  var textAnimationInterval = null;
+
+  // ---------- Off-screen Screen Canvas Texture ----------
+  const screenWidth = 512;
+  const screenHeight = 384;
+  const screenCanvas = document.createElement('canvas');
+  screenCanvas.width = screenWidth;
+  screenCanvas.height = screenHeight;
+  const ctx = screenCanvas.getContext('2d');
+
+  function wrapText(context, text, x, y, maxWidth, lineHeight) {
+    var words = text.split(' ');
+    var line = '';
+    var lines = [];
+
+    for (var n = 0; n < words.length; n++) {
+      var testLine = line + words[n] + ' ';
+      var metrics = context.measureText(testLine);
+      var testWidth = metrics.width;
+      if (testWidth > maxWidth && n > 0) {
+        lines.push(line);
+        line = words[n] + ' ';
+      } else {
+        line = testLine;
+      }
+    }
+    lines.push(line);
+
+    var totalHeight = lines.length * lineHeight;
+    var currentY = y - (totalHeight / 2) + (lineHeight / 2);
+
+    for (var i = 0; i < lines.length; i++) {
+      context.fillText(lines[i].trim(), x, currentY);
+      currentY += lineHeight;
+    }
+  }
+
+  let gridOffset = 0;
+  function drawScreenCanvas(time) {
+    // Background void
+    ctx.fillStyle = '#06030c';
+    ctx.fillRect(0, 0, screenWidth, screenHeight);
+
+    // Glowing grids
+    ctx.strokeStyle = 'rgba(0, 255, 204, 0.08)';
+    ctx.lineWidth = 1;
+    
+    // Vertical perspective lines
+    const numVerticalLines = 15;
+    const vanishingPointY = 70;
+    for (let i = 0; i < numVerticalLines; i++) {
+      const ratio = i / (numVerticalLines - 1);
+      const xStart = ratio * screenWidth;
+      const xEnd = (ratio - 0.5) * 2.3 * screenWidth + screenWidth / 2;
+      ctx.beginPath();
+      ctx.moveTo(xStart, vanishingPointY);
+      ctx.lineTo(xEnd, screenHeight);
+      ctx.stroke();
+    }
+
+    // Horizontal grid lines flowing down
+    gridOffset = (gridOffset + 1.2) % 36;
+    const numHorizontalLines = 11;
+    for (let i = 0; i < numHorizontalLines; i++) {
+      const yPos = vanishingPointY + Math.pow(i / (numHorizontalLines - 1), 2.2) * (screenHeight - vanishingPointY) + gridOffset;
+      if (yPos > vanishingPointY && yPos < screenHeight) {
+        ctx.beginPath();
+        ctx.moveTo(0, yPos);
+        ctx.lineTo(screenWidth, yPos);
+        ctx.stroke();
+      }
+    }
+
+    // CRT scanline overlay
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+    for (let y = 0; y < screenHeight; y += 4) {
+      ctx.fillRect(0, y, screenWidth, 2);
+    }
+
+    // Border highlights
+    ctx.strokeStyle = 'rgba(0, 255, 204, 0.15)';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(6, 6, screenWidth - 12, screenHeight - 12);
+
+    const s = states[idx];
+
+    // Eyebrow
+    if (s.eyebrow) {
+      ctx.font = "bold 15px 'JetBrains Mono', monospace";
+      ctx.fillStyle = '#ff007f'; // neon magenta
+      ctx.textAlign = 'center';
+      ctx.fillText(s.eyebrow, screenWidth / 2, 45);
+    }
+
+    // Screen text glow settings (boosted contrast for high readability)
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#00ffcc'; // neon cyan-green
+    ctx.shadowColor = 'rgba(0, 255, 204, 0.8)';
+    ctx.shadowBlur = 12;
+
+    const textToDraw = currentScreenText;
+    if (s.small) {
+      ctx.font = "bold 23px 'JetBrains Mono', monospace"; 
+      wrapText(ctx, textToDraw, screenWidth / 2, 155, 460, 36);
+    } else {
+      ctx.font = "28px 'Press Start 2P', monospace"; 
+      wrapText(ctx, textToDraw, screenWidth / 2, 170, 460, 48);
+    }
+    ctx.shadowBlur = 0; // reset glow
+
+    // Hint text
+    ctx.font = "12px 'JetBrains Mono', monospace";
+    ctx.fillStyle = '#937db3';
+    ctx.textAlign = 'center';
+    const blinkCursor = Math.floor(time / 450) % 2 === 0 ? "▍" : "";
+    ctx.fillText((s.hint || "") + blinkCursor, screenWidth / 2, 305);
+
+    // Progress dots
+    const ruleCount = states.length - 2;
+    const dotSpacing = 18;
+    const dotRadius = 5.0;
+    const startX = (screenWidth - (ruleCount - 1) * dotSpacing) / 2;
+    const dotY = 340;
+
+    for (let i = 0; i < ruleCount; i++) {
+      const active = (idx === i + 1);
+      ctx.beginPath();
+      ctx.arc(startX + i * dotSpacing, dotY, active ? dotRadius * 1.3 : dotRadius, 0, Math.PI * 2);
+      if (active) {
+        ctx.fillStyle = '#00ffcc';
+        ctx.shadowColor = 'rgba(0, 255, 204, 0.8)';
+        ctx.shadowBlur = 8;
+      } else {
+        ctx.fillStyle = '#392254';
+        ctx.shadowBlur = 0;
+      }
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
+
+  function scrambleText(targetText) {
+    if (textAnimationInterval) clearInterval(textAnimationInterval);
+
+    var frame = 0;
+    var totalFrames = 15;
+    var revealFrom = 3;
+
+    textAnimationInterval = setInterval(function() {
+      frame++;
+      var revealCount = Math.max(0, Math.floor(((frame - revealFrom) / (totalFrames - revealFrom)) * targetText.length));
+      var out = "";
+      for (var i = 0; i < targetText.length; i++) {
+        var ch = targetText[i];
+        if (ch === " ") { out += " "; continue; }
+        if (i < revealCount) { out += ch; }
+        else { out += scrambleChars[Math.floor(Math.random() * scrambleChars.length)]; }
+      }
+      currentScreenText = out;
+
+      if (frame >= totalFrames) {
+        clearInterval(textAnimationInterval);
+        currentScreenText = targetText;
+        isAnimating = false;
+      }
+    }, 32);
+  }
+
+  // ---------- Off-screen Marquee Canvas Texture ----------
+  const marqueeCanvas = document.createElement('canvas');
+  marqueeCanvas.width = 512;
+  marqueeCanvas.height = 128;
+  const mCtx = marqueeCanvas.getContext('2d');
+
+  function drawMarqueeCanvas() {
+    mCtx.fillStyle = '#1a0d33';
+    mCtx.fillRect(0, 0, 512, 128);
+    
+    // Draw neon pink border
+    mCtx.strokeStyle = '#ff00ff';
+    mCtx.lineWidth = 5;
+    mCtx.strokeRect(4, 4, 504, 120);
+
+    // Glowing title text
+    mCtx.font = "900 60px 'Montserrat', sans-serif";
+    mCtx.fillStyle = '#ffffff';
+    mCtx.textAlign = 'center';
+    mCtx.textBaseline = 'middle';
+    mCtx.shadowColor = '#ff00ff';
+    mCtx.shadowBlur = 18;
+    mCtx.fillText("DECIPHER", 256, 64);
+    mCtx.shadowBlur = 0;
+  }
+
+  // ---------- Three.js WebGL Implementation ----------
+  const container = document.getElementById('canvas3d-container');
+  const scene = new THREE.Scene();
+
+  // Camera (Camera distance set to 24.5 to fit the entire cabinet height fully)
+  const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+  camera.position.set(0, 0.0, 24.5); 
+  camera.lookAt(0, 0.0, 0);
+
+  // Renderer
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  container.appendChild(renderer.domElement);
+
+  // Parent Group for Cabinet (Scale at 1.0 so it fits fully in the view)
+  const cabinetGroup = new THREE.Group();
+  cabinetGroup.scale.set(1.0, 1.0, 1.0); 
+  scene.add(cabinetGroup);
+
+  // Mesh offset group to center the cabinet pivot at height=0 (Offset by -8.5 so center is Y=0)
+  const meshOffset = new THREE.Group();
+  meshOffset.position.set(0, -8.5, 0);
+  cabinetGroup.add(meshOffset);
+
+  // --- Lighting (Purple theme ambient glow) ---
+  const ambientLight = new THREE.AmbientLight(0x3a0ca3, 1.3);
+  scene.add(ambientLight);
+
+  const dirLight = new THREE.DirectionalLight(0xffe6ff, 1.6);
+  dirLight.position.set(12, 18, 12);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.width = 1024;
+  dirLight.shadow.mapSize.height = 1024;
+  dirLight.shadow.camera.near = 0.5;
+  dirLight.shadow.camera.far = 40;
+  dirLight.shadow.camera.left = -8;
+  dirLight.shadow.camera.right = 8;
+  dirLight.shadow.camera.top = 8;
+  dirLight.shadow.camera.bottom = -8;
+  dirLight.shadow.bias = -0.0005;
+  scene.add(dirLight);
+
+  const fillLight = new THREE.DirectionalLight(0x8a2be2, 1.1);
+  fillLight.position.set(-12, 10, -12);
+  scene.add(fillLight);
+
+  // Point light for screen glow onto joystick and bezel
+  const screenGlowLight = new THREE.PointLight(0x00ffcc, 1.8, 8);
+  screenGlowLight.position.set(0, 3.2, 5.3); // In front of the screen
+  meshOffset.add(screenGlowLight);
+
+  // Point light for marquee glow
+  const marqueeGlowLight = new THREE.PointLight(0xff00ff, 1.4, 6);
+  marqueeGlowLight.position.set(0, 6.8, 5.3); // In front of marquee
+  meshOffset.add(marqueeGlowLight);
+
+  // --- Materials ---
+  const cabinetBodyMat = new THREE.MeshPhysicalMaterial({
+    color: 0x8a2be2, // Vibrant purple
+    roughness: 0.2,
+    metalness: 0.1,
+    clearcoat: 0.8,
+    clearcoatRoughness: 0.1
+  });
+
+  const cabinetInteriorMat = new THREE.MeshStandardMaterial({
+    color: 0x4b0082,
+    roughness: 0.7
+  });
+
+  const screenBezelMat = new THREE.MeshStandardMaterial({
+    color: 0x1a0d33,
+    roughness: 0.9
+  });
+
+  const controlPanelMat = new THREE.MeshStandardMaterial({
+    color: 0x5a189a,
+    metalness: 0.2,
+    roughness: 0.3
+  });
+
+  // --- Geometries & Meshes ---
+  
+  // Refined Side Profile Shape definition (Smooth Rounded Edges via Bezier Curves)
+  const sideShape = new THREE.Shape();
+  sideShape.moveTo(0, 0);
+  sideShape.lineTo(6.4, 0);
+  // Round bottom front corner
+  sideShape.quadraticCurveTo(6.8, 0, 6.8, 0.4);
+  // Up to control panel bottom
+  sideShape.lineTo(6.8, 6.4);
+  // Smooth curve to control panel extension
+  sideShape.quadraticCurveTo(6.8, 6.7, 7.0, 6.8);
+  sideShape.lineTo(8.0, 7.6);
+  sideShape.quadraticCurveTo(8.2, 7.8, 8.2, 8.1);
+  // Up to control panel top lip
+  sideShape.lineTo(8.2, 8.8);
+  sideShape.quadraticCurveTo(8.2, 9.0, 8.1, 9.0);
+  // Recess back to screen base
+  sideShape.lineTo(6.4, 9.0);
+  sideShape.quadraticCurveTo(6.3, 9.0, 6.28, 9.05);
+  // Slope up along screen bezel
+  sideShape.lineTo(3.6, 13.7);
+  sideShape.quadraticCurveTo(3.5, 13.8, 3.6, 13.9);
+  // Marquee shelf
+  sideShape.lineTo(4.9, 14.2);
+  sideShape.quadraticCurveTo(5.0, 14.25, 5.0, 14.4);
+  // Marquee front face
+  sideShape.lineTo(5.0, 16.8);
+  sideShape.quadraticCurveTo(5.0, 17.0, 4.8, 17.0);
+  // Top back
+  sideShape.lineTo(0.2, 17.0);
+  sideShape.quadraticCurveTo(0, 17.0, 0, 16.8);
+  sideShape.lineTo(0, 0);
+
+  const extrudeSettings = {
+    depth: 0.3,
+    bevelEnabled: true,
+    bevelThickness: 0.05,
+    bevelSize: 0.04,
+    bevelSegments: 5
+  };
+
+  const sideGeom = new THREE.ExtrudeGeometry(sideShape, extrudeSettings);
+  
+  // Left side panel
+  const leftPanel = new THREE.Mesh(sideGeom, cabinetBodyMat);
+  leftPanel.position.set(0, 0, -3.5);
+  leftPanel.castShadow = true;
+  leftPanel.receiveShadow = true;
+  meshOffset.add(leftPanel);
+
+  // Right side panel
+  const rightPanel = new THREE.Mesh(sideGeom, cabinetBodyMat);
+  rightPanel.position.set(0, 0, 3.2); // width matches Z extrusion gap
+  rightPanel.castShadow = true;
+  rightPanel.receiveShadow = true;
+  meshOffset.add(rightPanel);
+
+  // Interior Width = 6.4 (fills Z gap from -3.2 to 3.2)
+  const W_int = 6.4;
+
+  // Bottom Base Panel
+  const bottomPanel = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.2, W_int), cabinetInteriorMat);
+  bottomPanel.position.set(3.4, 0.1, 0);
+  bottomPanel.receiveShadow = true;
+  meshOffset.add(bottomPanel);
+
+  // Lower Front Panel
+  const frontLower = new THREE.Mesh(new THREE.BoxGeometry(0.2, 6.6, W_int), cabinetInteriorMat);
+  frontLower.position.set(6.7, 3.3, 0);
+  frontLower.castShadow = true;
+  frontLower.receiveShadow = true;
+  meshOffset.add(frontLower);
+
+  // Back wall cover
+  const backPanel = new THREE.Mesh(new THREE.BoxGeometry(0.2, 17.0, W_int), cabinetInteriorMat);
+  backPanel.position.set(0.1, 8.5, 0);
+  meshOffset.add(backPanel);
+
+  // Top cover
+  const topPanel = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.2, W_int), cabinetInteriorMat);
+  topPanel.position.set(2.5, 16.9, 0);
+  meshOffset.add(topPanel);
+
+  // Bezel Panel (Slanted bezel - mathematically aligned slant: length 5.37, angle -1.047)
+  const bezelGeom = new THREE.BoxGeometry(5.37, 0.2, W_int);
+  const bezel = new THREE.Mesh(bezelGeom, screenBezelMat);
+  bezel.position.set(4.94, 11.375, 0);
+  bezel.rotation.z = -1.047; // Align with shape slant, local +Y points up/forward
+  bezel.receiveShadow = true;
+  meshOffset.add(bezel);
+
+  // CRT Screen Mesh (Child of Bezel for 100% Perfect Alignment)
+  const screenTexture = new THREE.CanvasTexture(screenCanvas);
+  screenTexture.minFilter = THREE.LinearFilter;
+  screenTexture.magFilter = THREE.LinearFilter;
+
+  // Screen geometry
+  const screenGeom = new THREE.PlaneGeometry(6.2, 4.6);
+  const screenMat = new THREE.MeshBasicMaterial({
+    map: screenTexture,
+    side: THREE.DoubleSide
+  });
+  const screenMesh = new THREE.Mesh(screenGeom, screenMat);
+  
+  // Rotate locally: lie on bezel top face (-Math.PI/2 around X) and orient text right-side up (+Math.PI/2 around Z)
+  screenMesh.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+  // Position locally on the top face of the bezel (Y = 0.11 offset to prevent z-fighting)
+  screenMesh.position.set(0, 0.11, 0); 
+  bezel.add(screenMesh);
+
+  // Marquee Plate Mesh
+  drawMarqueeCanvas();
+  const marqueeTexture = new THREE.CanvasTexture(marqueeCanvas);
+  const marqueeGeom = new THREE.PlaneGeometry(W_int, 2.8);
+  const marqueeMat = new THREE.MeshBasicMaterial({
+    map: marqueeTexture,
+    side: THREE.DoubleSide
+  });
+  const marqueeMesh = new THREE.Mesh(marqueeGeom, marqueeMat);
+  marqueeMesh.rotation.y = Math.PI / 2; // Face front
+  marqueeMesh.position.set(5.02, 15.55, 0);
+  meshOffset.add(marqueeMesh);
+
+  // Control Panel Box
+  // Midpoint is X = 7.25, Y = 9.0. Tilted forward. Slope is Math.atan2(-1.2, 1.9) = -0.56 rad.
+  const controlPanelGeom = new THREE.BoxGeometry(2.3, 0.4, W_int);
+  const controlPanel = new THREE.Mesh(controlPanelGeom, controlPanelMat);
+  controlPanel.position.set(7.25, 9.0, 0);
+  controlPanel.rotation.z = -0.56;
+  controlPanel.castShadow = true;
+  controlPanel.receiveShadow = true;
+  meshOffset.add(controlPanel);
+
+  // --- Joystick ---
+  const joystickPivot = new THREE.Group();
+  joystickPivot.position.set(0.4, 0.2, -1.8); // Offset locally on the control panel
+  controlPanel.add(joystickPivot);
+
+  // Base hemisphere
+  const joyBase = new THREE.Mesh(
+    new THREE.SphereGeometry(0.45, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: 0x110722, roughness: 0.8 })
+  );
+  joyBase.position.set(0.4, 0.2, -1.8);
+  controlPanel.add(joyBase);
+
+  // Shaft
+  const shaftGeom = new THREE.CylinderGeometry(0.065, 0.065, 1.1, 8);
+  shaftGeom.translate(0, 0.55, 0); // Offset pivot point to bottom of shaft
+  const shaftMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.95, roughness: 0.1 });
+  const shaft = new THREE.Mesh(shaftGeom, shaftMat);
+  joystickPivot.add(shaft);
+
+  // Ball
+  const ballGeom = new THREE.SphereGeometry(0.35, 16, 16);
+  const ballMat = new THREE.MeshStandardMaterial({
+    color: 0xff00ff,
+    emissive: 0xaa00aa,
+    emissiveIntensity: 0.6,
+    roughness: 0.15
+  });
+  const ball = new THREE.Mesh(ballGeom, ballMat);
+  ball.position.set(0, 1.1, 0);
+  joystickPivot.add(ball);
+
+  // --- Control Panel Buttons ---
+  const btnBaseGeom = new THREE.CylinderGeometry(0.32, 0.32, 0.1, 16);
+  const btnBaseMat = new THREE.MeshStandardMaterial({ color: 0x110722, roughness: 0.9 });
+
+  const btnAGeom = new THREE.CylinderGeometry(0.24, 0.24, 0.15, 16);
+  btnAGeom.translate(0, 0.075, 0);
+  const btnAMat = new THREE.MeshStandardMaterial({
+    color: 0x00ffcc,
+    emissive: 0x005544,
+    emissiveIntensity: 0.6,
+    roughness: 0.2
+  });
+
+  const btnBGeom = new THREE.CylinderGeometry(0.24, 0.24, 0.15, 16);
+  btnBGeom.translate(0, 0.075, 0);
+  const btnBMat = new THREE.MeshStandardMaterial({
+    color: 0xff00ff,
+    emissive: 0x770077,
+    emissiveIntensity: 0.6,
+    roughness: 0.2
+  });
+
+  // Button A assembly (Cyan-Green)
+  const baseA = new THREE.Mesh(btnBaseGeom, btnBaseMat);
+  baseA.position.set(0.4, 0.2, 0.7);
+  controlPanel.add(baseA);
+
+  const btnA = new THREE.Mesh(btnAGeom, btnAMat);
+  btnA.position.set(0.4, 0.2, 0.7);
+  controlPanel.add(btnA);
+
+  // Button B assembly (Magenta)
+  const baseB = new THREE.Mesh(btnBaseGeom, btnBaseMat);
+  baseB.position.set(0.4, 0.2, 1.7);
+  controlPanel.add(baseB);
+
+  const btnB = new THREE.Mesh(btnBGeom, btnBMat);
+  btnB.position.set(0.4, 0.2, 1.7);
+  controlPanel.add(btnB);
+
+  // --- Bezel Status Lights (Neon Indicators) ---
+  const indicatorGeom = new THREE.SphereGeometry(0.14, 8, 8);
+  const indicatorDimMat = new THREE.MeshStandardMaterial({
+    color: 0xff3b5c,
+    emissive: 0x660011,
+    emissiveIntensity: 0.4
+  });
+
+  const indA = new THREE.Mesh(indicatorGeom, indicatorDimMat);
+  indA.position.set(0.8, 0.2, -0.4);
+  controlPanel.add(indA);
+
+  const indB = new THREE.Mesh(indicatorGeom, indicatorDimMat.clone());
+  indB.position.set(0.8, 0.2, 0.4);
+  controlPanel.add(indB);
+
+  // --- Glowing T-Molding (Smooth Bezier Neon Trim Profile) ---
+  const frontPath = new THREE.Path();
+  frontPath.moveTo(6.8, 0.3); // Start above bottom-front corner
+  frontPath.lineTo(6.8, 6.4);
+  frontPath.quadraticCurveTo(6.8, 6.7, 7.0, 6.8);
+  frontPath.lineTo(8.0, 7.6);
+  frontPath.quadraticCurveTo(8.2, 7.8, 8.2, 8.1);
+  frontPath.lineTo(8.2, 8.8);
+  frontPath.quadraticCurveTo(8.2, 9.0, 8.1, 9.0);
+  frontPath.lineTo(6.4, 9.0);
+  frontPath.quadraticCurveTo(6.3, 9.0, 6.28, 9.05);
+  frontPath.lineTo(3.6, 13.7);
+  frontPath.quadraticCurveTo(3.5, 13.8, 3.6, 13.9);
+  frontPath.lineTo(4.9, 14.2);
+  frontPath.quadraticCurveTo(5.0, 14.25, 5.0, 14.4);
+  frontPath.lineTo(5.0, 16.8);
+  frontPath.quadraticCurveTo(5.0, 17.0, 4.7, 17.0);
+
+  const frontPoints = frontPath.getPoints(36); // Smooth curve rendering
+  const trimMat = new THREE.MeshBasicMaterial({ color: 0xff00ff }); // Magenta emissive glow
+  for (let i = 0; i < frontPoints.length - 1; i++) {
+    const p1 = frontPoints[i];
+    const p2 = frontPoints[i+1];
+    const dist = p1.distanceTo(p2);
+    const mid = new THREE.Vector2().addVectors(p1, p2).multiplyScalar(0.5);
+    const angle = Math.atan2(p2.x - p1.x, p2.y - p1.y);
+
+    const trimGeom = new THREE.BoxGeometry(0.08, dist + 0.02, 0.08); // overlap to prevent gaps
+
+    // Left trim molding
+    const trimL = new THREE.Mesh(trimGeom, trimMat);
+    trimL.position.set(mid.x, mid.y, -3.53);
+    trimL.rotation.z = -angle;
+    meshOffset.add(trimL);
+
+    // Right trim molding
+    const trimR = new THREE.Mesh(trimGeom, trimMat);
+    trimR.position.set(mid.x, mid.y, 3.23); // Outside edge of right panel
+    trimR.rotation.z = -angle;
+    meshOffset.add(trimR);
+  }
+
+  // --- Ground Elements ---
+  const gridHelper = new THREE.GridHelper(26, 26, 0x8a2be2, 0x3b0764);
+  gridHelper.position.y = -9.0;
+  scene.add(gridHelper);
+
+  // Shadow receiver plane
+  const shadowPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(30, 30),
+    new THREE.ShadowMaterial({ opacity: 0.5 })
+  );
+  shadowPlane.rotation.x = -Math.PI / 2;
+  shadowPlane.position.y = -9.0;
+  shadowPlane.receiveShadow = true;
+  scene.add(shadowPlane);
+
+  // --- Animated 3D Floating Doodles (Vibrant Blocks & Diamonds Flanking Cabinet) ---
+  const doodles = [];
+  const doodleCount = 28;
+  const doodleColors = [
+    0x00f0ff, // Neon Cyan
+    0xff007f, // Neon Magenta/Pink
+    0xffea00, // Vibrant Yellow
+    0x8b5cf6, // Vibrant Purple
+    0xff6b0a, // Neon Orange
+    0x22c55e  // Bright Green
+  ];
+
+  function create3DPlus(size, thickness) {
+    const group = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x00ffcc,
+      emissive: 0x00ffcc,
+      emissiveIntensity: 0.35,
+      roughness: 0.2
+    });
+    const box1 = new THREE.Mesh(new THREE.BoxGeometry(size, thickness, thickness), mat);
+    const box2 = new THREE.Mesh(new THREE.BoxGeometry(thickness, size, thickness), mat);
+    group.add(box1, box2);
+    return group;
+  }
+
+  for (let i = 0; i < doodleCount; i++) {
+    const randType = Math.random();
+    const color = doodleColors[Math.floor(Math.random() * doodleColors.length)];
+    const mat = new THREE.MeshStandardMaterial({
+      color: color,
+      emissive: color,
+      emissiveIntensity: 0.45,
+      roughness: 0.15,
+      metalness: 0.1
+    });
+
+    let mesh;
+    if (randType < 0.6) {
+      // Cube/Block geometry
+      const w = 0.5 + Math.random() * 1.1;
+      const h = 0.5 + Math.random() * 1.1;
+      const d = 0.5 + Math.random() * 1.1;
+      mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    } else if (randType < 0.9) {
+      // Diamond star (octahedron)
+      const size = 0.5 + Math.random() * 0.7;
+      mesh = new THREE.Mesh(new THREE.OctahedronGeometry(size, 0), mat);
+    } else {
+      // Plus signs
+      mesh = create3DPlus(0.7 + Math.random() * 0.5, 0.14);
+    }
+    
+    // Position flanking the cabinet and pushed forward (Z > -2.5)
+    const isLeft = Math.random() > 0.5;
+    const posX = isLeft ? (-12.0 + Math.random() * 6.5) : (5.0 + Math.random() * 6.5);
+    const posY = -6.5 + Math.random() * 14.0;
+    const posZ = -2.0 + Math.random() * 11.5; 
+
+    mesh.position.set(posX, posY, posZ);
+
+    mesh.userData = {
+      spinX: (Math.random() - 0.5) * 0.02,
+      spinY: (Math.random() - 0.5) * 0.02,
+      spinZ: (Math.random() - 0.5) * 0.02,
+      floatSpeed: 0.001 + Math.random() * 0.0018,
+      floatHeight: 0.3 + Math.random() * 0.5,
+      baseY: posY,
+      phase: Math.random() * Math.PI * 2
+    };
+    
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    doodles.push(mesh);
+  }
+
+  // Rotate entire cabinet group so front faces camera (+Z)
+  cabinetGroup.rotation.y = -Math.PI / 2;
+
+  // --- Interactive Controller Logic ---
+
+  function flashLights3D() {
+    indA.material.color.setHex(0x00ffcc);
+    indA.material.emissive.setHex(0x00aa88);
+    indA.material.emissiveIntensity = 2.0;
+
+    setTimeout(() => {
+      indB.material.color.setHex(0x00ffcc);
+      indB.material.emissive.setHex(0x00aa88);
+      indB.material.emissiveIntensity = 2.0;
+    }, 80);
+
+    setTimeout(() => {
+      indA.material.color.setHex(0xff3b5c);
+      indA.material.emissive.setHex(0x660011);
+      indA.material.emissiveIntensity = 0.4;
+
+      indB.material.color.setHex(0xff3b5c);
+      indB.material.emissive.setHex(0x660011);
+      indB.material.emissiveIntensity = 0.4;
+    }, 420);
+  }
+
+  function advance() {
+    if (isAnimating) return;
+    isAnimating = true;
+    idx = (idx + 1) % states.length;
+    scrambleText(states[idx].text);
+    flashLights3D();
+  }
+
+  // --- Raycasting click/hover detection ---
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+  let cabRotationTargetY = -Math.PI / 2; 
+  let cabRotationTargetX = 0;
+
+  // Track mouse coordinates and drive rotation purely via mouse tracking
+  container.addEventListener('mousemove', (e) => {
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    const mx = (e.clientX / window.innerWidth) * 2 - 1;
+    const my = -(e.clientY / window.innerHeight) * 2 + 1;
+    
+    // Clamp target Y sway between restricted boundaries (+/- 45 degrees or 0.8 rad)
+    cabRotationTargetY = THREE.MathUtils.clamp(-Math.PI / 2 + mx * 0.8, -Math.PI / 2 - 0.8, -Math.PI / 2 + 0.8);
+    cabRotationTargetX = THREE.MathUtils.clamp(my * 0.25, -0.25, 0.25);
+
+    // Set cursor style depending on hover targets
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects([ball, btnA, btnB, screenMesh], true);
+    if (intersects.length > 0) {
+      document.body.style.cursor = 'pointer';
+    } else {
+      document.body.style.cursor = 'default';
+    }
+  });
+
+  // Handle clicks on interactive elements directly
+  container.addEventListener('click', (e) => {
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects([ball, btnA, btnB, controlPanel, leftPanel, rightPanel, screenMesh], true);
+    
+    if (intersects.length > 0) {
+      const clicked = intersects[0].object;
+
+      // Joystick Ball
+      if (clicked === ball || clicked.parent === joystickPivot) {
+        gsap.to(joystickPivot.rotation, {
+          x: (Math.random() - 0.5) * 0.5,
+          z: (Math.random() - 0.5) * 0.5,
+          duration: 0.08,
+          yoyo: true,
+          repeat: 1,
+          onComplete: () => { joystickPivot.rotation.set(0, 0, 0); }
+        });
+        advance();
+      }
+      // Button A (Green)
+      else if (clicked === btnA) {
+        gsap.to(btnA.position, {
+          y: 0.11,
+          duration: 0.07,
+          yoyo: true,
+          repeat: 1
+        });
+        advance();
+      }
+      // Button B (Magenta)
+      else if (clicked === btnB) {
+        gsap.to(btnB.position, {
+          y: 0.11,
+          duration: 0.07,
+          yoyo: true,
+          repeat: 1
+        });
+        advance();
+      }
+      // General cabinet body / screen click fallback
+      else {
+        gsap.to(joystickPivot.rotation, {
+          x: 0.28,
+          duration: 0.07,
+          yoyo: true,
+          repeat: 1,
+          onComplete: () => { joystickPivot.rotation.set(0, 0, 0); }
+        });
+        advance();
+      }
+    }
+  });
+
+  // Render Loop
+  function render(time) {
+    requestAnimationFrame(render);
+    
+    // Animate CRT screen canvas
+    drawScreenCanvas(time);
+    screenTexture.needsUpdate = true;
+
+    // Update 3D Floating Doodles
+    doodles.forEach(doodle => {
+      doodle.rotation.x += doodle.userData.spinX;
+      doodle.rotation.y += doodle.userData.spinY;
+      doodle.rotation.z += doodle.userData.spinZ;
+      doodle.position.y = doodle.userData.baseY + Math.sin(time * doodle.userData.floatSpeed + doodle.userData.phase) * doodle.userData.floatHeight;
+    });
+
+    // Smoothly follow the mouse cursor targets
+    cabinetGroup.rotation.y = THREE.MathUtils.lerp(cabinetGroup.rotation.y, cabRotationTargetY, 0.05);
+    cabinetGroup.rotation.x = THREE.MathUtils.lerp(cabinetGroup.rotation.x, cabRotationTargetX, 0.05);
+
+    // Breathing float animation when idle
+    if (!isAnimating) {
+      meshOffset.position.y = -8.5 + Math.sin(time * 0.0016) * 0.1;
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  // Window Resize
+  window.addEventListener('resize', () => {
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+  });
+
+  // Initial State Rendering
+  render(0);
+</script>
+
+</body>
+</html>
