@@ -3,68 +3,78 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>DECIPHER — LNMIIT Central Plaza</title>
-<meta name="description" content="The Decipher arcade cabinet standing in the LNMIIT central plaza." />
-<meta property="og:title" content="DECIPHER — LNMIIT Central Plaza" />
-<meta property="og:description" content="The Decipher cabinet, on the plaza." />
-<meta name="theme-color" content="#08010f" />
+<title>LNMIIT Central Plaza — DECIPHER</title>
+<meta name="description" content="Walk the LNMIIT central plaza in 3D." />
+<meta name="theme-color" content="#0a0618" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%2310002b'/%3E%3Ctext x='50' y='68' font-size='48' text-anchor='middle' fill='%2300ffcc' font-family='monospace' font-weight='bold'%3E%7B%3A%7D%3C/text%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:wght@400;600;700&family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/arcade.css" />
+<style>
+  /* plaza-specific chrome on top of the shared arcade styling */
+  .site-label {
+    position: fixed; z-index: 20; left: clamp(16px, 3.5vw, 44px); top: 22px;
+    opacity: 0; transition: opacity 1s ease .2s; pointer-events: none;
+  }
+  body.live .site-label { opacity: 1; }
+  .site-label h1 {
+    font-family: var(--font-display); font-weight: 700;
+    font-size: clamp(15px, 2.2vw, 22px); letter-spacing: 4px; color: var(--text);
+    text-shadow: 0 2px 20px rgba(0,0,0,.85);
+  }
+  .site-label p {
+    margin-top: 8px; font-size: 10px; letter-spacing: 3.5px;
+    text-transform: uppercase; color: var(--cyan);
+    text-shadow: 0 0 14px rgba(0,255,204,.5);
+  }
+  .plaza-hint {
+    position: fixed; z-index: 20; left: 50%; bottom: 26px; transform: translateX(-50%);
+    font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--muted); text-align: center; white-space: nowrap;
+    text-shadow: 0 2px 12px rgba(0,0,0,.9);
+    opacity: 0; transition: opacity 1s ease .4s; pointer-events: none;
+  }
+  body.live .plaza-hint { opacity: 1; }
+  .plaza-hint.dim { opacity: .35; }
+  .plaza-back {
+    position: fixed; z-index: 20; right: clamp(16px, 3.5vw, 44px); top: 22px;
+    opacity: 0; transition: opacity 1s ease .2s;
+  }
+  body.live .plaza-back { opacity: 1; }
+  @media (max-width: 620px) {
+    .plaza-hint { font-size: 8.5px; letter-spacing: 2px; }
+  }
+</style>
 </head>
 <body>
 
 <div id="stage"></div>
 
-<!-- ================== BOOT / LOADING ================== -->
+<!-- ================== BOOT ================== -->
 <div class="boot" id="boot">
   <div class="boot-inner">
-    <p class="boot-eyebrow">LNMIIT CENTRAL PLAZA <span class="s">//</span> <span data-date-label>—</span></p>
-    <h1 class="boot-title">DECIPHER</h1>
+    <p class="boot-eyebrow">DECIPHER <span class="s">//</span> THE LNM INSTITUTE OF INFORMATION TECHNOLOGY</p>
+    <h1 class="boot-title">CENTRAL PLAZA</h1>
     <div class="boot-bar"><div class="boot-bar-fill" id="boot-fill"></div></div>
-    <p class="boot-status" id="boot-status">powering up cabinet…</p>
-    <button class="boot-start" id="boot-start" hidden>PRESS START</button>
+    <p class="boot-status" id="boot-status">opening the plaza…</p>
+    <button class="boot-start" id="boot-start" hidden>STEP INSIDE</button>
   </div>
 </div>
 
 <!-- ================== HUD ================== -->
-<header class="hud hud-top">
-  <a class="wordmark" href="/" aria-label="Decipher home">
-    <span class="wm-mark">{:}</span><span class="wm-text">DECIPHER</span>
-  </a>
-  <div class="hud-meta">
-    <div class="countdown" id="countdown" role="timer" aria-label="Time until event">
-      <span class="cd-cell"><b id="cd-d">--</b><i>D</i></span>
-      <span class="cd-cell"><b id="cd-h">--</b><i>H</i></span>
-      <span class="cd-cell"><b id="cd-m">--</b><i>M</i></span>
-      <span class="cd-cell"><b id="cd-s">--</b><i>S</i></span>
-    </div>
-    <p class="hud-date"><span data-date-label>—</span> <span class="s">·</span> <span data-venue>—</span></p>
-  </div>
-</header>
+<div class="site-label">
+  <h1>CENTRAL PLAZA</h1>
+  <p>LNMIIT · Jaipur</p>
+</div>
 
-<aside class="readout hud" id="readout" aria-live="polite">
-  <div class="ro-frame">
-    <p class="ro-eyebrow" id="ro-eyebrow"></p>
-    <p class="ro-body" id="ro-body"></p>
-    <p class="ro-step" id="ro-step"></p>
-  </div>
-</aside>
+<a class="btn btn-ghost plaza-back" href="/">← BACK TO DECIPHER</a>
 
-<footer class="hud hud-bottom">
-  <p class="hud-hint" id="hud-hint">CLICK THE JOYSTICK OR BUTTONS TO READ ON</p>
-  <div class="hud-actions">
-    <a class="btn btn-solid" id="register-btn" href="#">REGISTER</a>
-    <a class="btn btn-ghost" href="/">← BACK TO SPACE</a>
-  </div>
-  <button class="hud-sound" id="sound-btn" aria-label="Toggle sound">♪ ON</button>
-</footer>
+<p class="plaza-hint" id="hint">DRAG TO LOOK · SCROLL TO ZOOM · RIGHT-DRAG TO PAN</p>
 
 <div class="fail" id="fail" hidden>
-  <p>This browser couldn't start WebGL, so the cabinet can't render.</p>
-  <p class="fail-sub">Try a different browser, or ask an organizer for the rules sheet.</p>
+  <p>This browser couldn't start WebGL, so the plaza can't render.</p>
+  <p class="fail-sub"><a href="/" style="color:var(--cyan)">← Back to Decipher</a></p>
 </div>
 
 <script type="importmap">
@@ -75,8 +85,6 @@
   }
 }
 </script>
-<script>window.DECIPHER_SCENE = "plaza";</script>
-<script src="/js/config.js"></script>
-<script type="module" src="/js/arcade.js"></script>
+<script type="module" src="/js/plaza.js"></script>
 </body>
 </html>
