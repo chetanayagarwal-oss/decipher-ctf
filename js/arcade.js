@@ -282,23 +282,85 @@ function drawScreen(time) {
 }
 
 /* ================== marquee canvas ================== */
+// Canvas aspect must match the marquee mesh (6.4 x 2.8 = 2.286:1) or the
+// lettering gets stretched vertically.
+const MW = 2048, MH = 896;
 const mc = document.createElement("canvas");
-mc.width = 1024; mc.height = 256;
+mc.width = MW; mc.height = MH;
 const mg = mc.getContext("2d");
+
 function drawMarquee() {
-  mg.fillStyle = "#160a2b";
-  mg.fillRect(0, 0, 1024, 256);
-  mg.strokeStyle = "#ff00ff"; mg.lineWidth = 10;
-  mg.strokeRect(6, 6, 1012, 244);
-  mg.textAlign = "center"; mg.textBaseline = "middle";
-  mg.font = "700 110px Syncopate, sans-serif";
-  mg.fillStyle = "#ffffff";
-  mg.shadowColor = "#ff00ff"; mg.shadowBlur = 34;
-  mg.fillText("DECIPHER", 512, 116);
+  const cx = MW / 2, cy = MH / 2;
+  mg.clearRect(0, 0, MW, MH);
+
+  // --- backlit acrylic: bright behind the lettering, falling off to the edges
+  const glow = mg.createRadialGradient(cx, cy, 0, cx, cy, MW * 0.62);
+  glow.addColorStop(0.00, "#4a1170");
+  glow.addColorStop(0.45, "#2a0a4a");
+  glow.addColorStop(1.00, "#120428");
+  mg.fillStyle = glow;
+  mg.fillRect(0, 0, MW, MH);
+
+  // faint horizontal banding, like light through textured acrylic
+  mg.fillStyle = "rgba(255,255,255,0.022)";
+  for (let y = 0; y < MH; y += 8) mg.fillRect(0, y, MW, 3);
+
+  // --- housing: magenta neon tube inside a dark frame
+  mg.strokeStyle = "#1a0730"; mg.lineWidth = 34;
+  mg.strokeRect(17, 17, MW - 34, MH - 34);
+  mg.strokeStyle = "#ff2ff5"; mg.lineWidth = 9;
+  mg.shadowColor = "#ff00ff"; mg.shadowBlur = 46;
+  mg.strokeRect(44, 44, MW - 88, MH - 88);
   mg.shadowBlur = 0;
-  mg.font = "600 30px 'JetBrains Mono', monospace";
-  mg.fillStyle = "#00ffcc";
-  mg.fillText("CAMPUS  CTF", 512, 200);
+  mg.strokeStyle = "rgba(0,255,204,0.5)"; mg.lineWidth = 2.5;
+  mg.strokeRect(62, 62, MW - 124, MH - 124);
+
+  // --- DECIPHER, and nothing else
+  mg.textAlign = "center";
+  mg.textBaseline = "middle";
+  const TEXT = "DECIPHER";
+
+  // fit the word to the panel instead of trusting a hardcoded size
+  let size = 250;
+  mg.font = `700 ${size}px Syncopate, sans-serif`;
+  const maxW = MW - 300;
+  while (size > 60 && mg.measureText(TEXT).width > maxW) {
+    size -= 6;
+    mg.font = `700 ${size}px Syncopate, sans-serif`;
+  }
+  mg.letterSpacing = Math.round(size * 0.06) + "px";
+  mg.font = `700 ${size}px Syncopate, sans-serif`;
+
+  // outer halo, built in passes so it reads as light not blur
+  mg.shadowColor = "#ff00ff";
+  for (const b of [90, 60, 34]) {
+    mg.shadowBlur = b;
+    mg.fillStyle = "rgba(255,120,255,0.30)";
+    mg.fillText(TEXT, cx, cy);
+  }
+  mg.shadowColor = "#00ffcc";
+  mg.shadowBlur = 46;
+  mg.fillStyle = "rgba(120,255,235,0.22)";
+  mg.fillText(TEXT, cx, cy);
+  mg.shadowBlur = 0;
+
+  // chrome face: cyan rim at the top, magenta beneath, white hot band across
+  // the middle where a real backlit sign catches the tube
+  const face = mg.createLinearGradient(0, cy - size * 0.62, 0, cy + size * 0.62);
+  face.addColorStop(0.00, "#9ffff0");
+  face.addColorStop(0.30, "#ffffff");
+  face.addColorStop(0.52, "#ffffff");
+  face.addColorStop(0.72, "#ffb9fb");
+  face.addColorStop(1.00, "#c266ff");
+  mg.fillStyle = face;
+  mg.fillText(TEXT, cx, cy);
+
+  // crisp edge so bloom has something solid to bite on
+  mg.lineWidth = Math.max(2, size * 0.012);
+  mg.strokeStyle = "rgba(255,255,255,0.85)";
+  mg.strokeText(TEXT, cx, cy);
+
+  mg.letterSpacing = "0px";
 }
 
 /* ================== cabinet ================== */
