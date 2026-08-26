@@ -9,6 +9,8 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 
 const C = window.DECIPHER;
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -74,12 +76,14 @@ stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x08010f);
-scene.fog = new THREE.FogExp2(0x08010f, 0.022);
+// Loose enough to see across the plaza once it loads, dense enough that its
+// far edge dissolves instead of ending in a hard seam.
+scene.fog = new THREE.FogExp2(0x0d0620, 0.0032);
 
 /* The CRT sits on a bezel raked back 60°, so its normal points up-and-forward.
    Putting the eye above the screen line reads it nearly face-on — the angle you
    get standing at a real cabinet. Base crops off the bottom of frame on purpose. */
-const camera = new THREE.PerspectiveCamera(isMobile ? 50 : 40, innerWidth / innerHeight, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(isMobile ? 50 : 40, innerWidth / innerHeight, 0.1, 4000);
 const CAM = { y: 6.5, z: 19, look: 3.4, mobY: 7, mobZ: 24 };
 camera.position.set(0, CAM.y, isMobile ? CAM.mobZ : CAM.z);
 camera.lookAt(0, CAM.look, 0);
@@ -565,6 +569,7 @@ function buildFloor() {
   grid.material.transparent = true;
   grid.material.opacity = 0.32;
   scene.add(grid);
+  placeholderGround = { floor, grid };
 
   // drifting motes for depth
   const N = isMobile ? 120 : 260;
@@ -584,6 +589,88 @@ function buildFloor() {
   return motes;
 }
 let motes;
+let placeholderGround = null;
+let plazaRoot = null;
+let plazaFade = 0;
+
+/* ================== the plaza ==================
+   The real central plaza, exported from Blender and Meshopt-compressed.
+   It is streamed in AFTER the cabinet is interactive so first paint stays
+   fast: the page is usable in ~1 MB, and the 8.6 MB plaza arrives behind it. */
+const CABINET_UNITS_PER_METRE = 17 / 1.8;   // the cabinet is 17 units ≈ 1.8 m tall
+
+async function loadPlaza() {
+  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  const gltf = await new Promise((res, rej) =>
+    loader.load("assets/models/plaza.glb", res, undefined, rej));
+
+  const root = gltf.scene;
+
+  // Measure what actually arrived rather than trusting numbers from the export.
+  const box = new THREE.Box3().setFromObject(root);
+  const size = new THREE.Vector3(); box.getSize(size);
+  const centre = new THREE.Vector3(); box.getCenter(centre);
+
+  // The model is in metres; the cabinet lives in its own unit space.
+  const s = CABINET_UNITS_PER_METRE;
+  root.scale.setScalar(s);
+
+  // Centre the plaza horizontally on the cabinet, height sorted out below.
+  root.position.set(-centre.x * s, 0, -centre.z * s);
+  root.updateMatrixWorld(true);
+
+  // Find the real walking surface by firing a ray straight down through the
+  // middle. The bounding-box floor is NOT the ground: anything modelled below
+  // grade (kerbs, foundations, stray geometry) would drop the whole plaza and
+  // leave the camera underneath it, staring at the slab's underside.
+  const down = new THREE.Raycaster(
+    new THREE.Vector3(0, box.max.y * s + 50, 0),
+    new THREE.Vector3(0, -1, 0),
+    0,
+    (box.max.y - box.min.y) * s + 200
+  );
+  const hits = down.intersectObject(root, true);
+  const groundY = hits.length ? hits[0].point.y : box.min.y * s;
+  if (!hits.length) console.warn("plaza: no ground hit at centre, using bbox floor");
+
+  root.position.y = -8.5 - groundY;
+  root.updateMatrixWorld(true);
+
+  console.info(
+    "plaza: size(m)", size.toArray().map(n => n.toFixed(1)).join(" x "),
+    "| scale", s.toFixed(2),
+    "| groundY", groundY.toFixed(2),
+    "| placed at y", root.position.y.toFixed(2)
+  );
+
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = false;        // the plaza is scenery; only the cabinet casts
+    o.receiveShadow = true;
+    o.frustumCulled = true;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      if (!m) continue;
+      m.transparent = true;      // so it can fade up
+      m.opacity = 0;
+      m.envMapIntensity = 0.6;
+    }
+  });
+
+  scene.add(root);
+  plazaRoot = root;
+
+  // Retire the stand-in floor now that there is real ground.
+  if (placeholderGround) {
+    for (const o of Object.values(placeholderGround)) {
+      scene.remove(o);
+      o.geometry?.dispose();
+      o.material?.dispose?.();
+    }
+    placeholderGround = null;
+  }
+  return root;
+}
 
 /* ================== audio ================== */
 let ambience = null, thump = null, soundOn = true;
@@ -749,6 +836,10 @@ bootStart.addEventListener("click", () => {
   click();
   reveal = 0; revealTarget = 1;
   syncReadout();
+
+  // Stream the plaza in behind the cabinet. Deliberately not awaited: the page
+  // is already interactive, and a failure here must not break the homepage.
+  loadPlaza().catch(err => console.warn("plaza unavailable, keeping grid:", err));
 });
 
 /* ================== render loop ================== */
@@ -783,6 +874,25 @@ function frame(now) {
   }
 
   stepSprings(now);
+
+  /* fade the plaza up once it has arrived */
+  if (plazaRoot && plazaFade < 1) {
+    plazaFade = Math.min(1, plazaFade + dt / 1400);
+    const e = plazaFade * plazaFade * (3 - 2 * plazaFade);   // smoothstep
+    plazaRoot.traverse(o => {
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) if (m) m.opacity = e;
+    });
+    if (plazaFade >= 1) {
+      // Opaque again once faded: transparent materials sort per-frame and cost more.
+      plazaRoot.traverse(o => {
+        if (!o.isMesh) return;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (const m of mats) if (m) { m.transparent = false; m.opacity = 1; }
+      });
+    }
+  }
 
   /* parallax + idle float */
   root.rotation.y += (target.yaw - root.rotation.y) * 0.055;
