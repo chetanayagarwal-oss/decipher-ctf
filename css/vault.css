@@ -106,9 +106,8 @@ body.entered .hud { opacity: 1; }
   text-decoration: none;
   padding: 10px 14px;
   border: 1px solid rgba(123, 44, 191, 0.35);
-  background: rgba(8, 1, 15, 0.55);
+  background: rgba(10, 3, 20, 0.92);
   border-radius: 4px;
-  backdrop-filter: blur(8px);
 }
 .hud-back:hover { color: var(--cyan); border-color: var(--cyan); }
 
@@ -118,9 +117,8 @@ body.entered .hud { opacity: 1; }
   color: var(--muted); cursor: pointer;
   padding: 10px 14px;
   border: 1px solid rgba(123, 44, 191, 0.35);
-  background: rgba(8, 1, 15, 0.55);
+  background: rgba(10, 3, 20, 0.92);
   border-radius: 4px;
-  backdrop-filter: blur(8px);
 }
 .hud-sound:hover { color: var(--cyan); border-color: var(--cyan); }
 

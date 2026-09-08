@@ -27,7 +27,7 @@ const DECIPHER = {
   ],
 
   /* A flag looks like this — shown as an example on screen. */
-  flagExample: "DEC{y0ur_f1rst_fl4g}",
+  flagExample: "DECIPHER{y0ur_f1rst_fl4g}",
 
   /* ---- RULES (placeholder text — replace with your final rules) ---- */
   rules: [

@@ -33,7 +33,7 @@ try {
   bootEl.style.display = "none";
   throw err;
 }
-const BASE_PR = Math.min(devicePixelRatio || 1, isMobile ? 1.5 : 2);
+const BASE_PR = Math.min(devicePixelRatio || 1, isMobile ? 1.25 : 1.5);
 let quality = 1;
 renderer.setPixelRatio(BASE_PR);
 renderer.setSize(innerWidth, innerHeight);
@@ -215,21 +215,38 @@ async function load() {
 }
 
 /* ================== boot ================== */
+function enterPlaza() {
+  bootEl.classList.add("gone");
+  document.body.classList.add("live");
+  try {
+    localStorage.setItem("decipher_plaza_started", "true");
+    sessionStorage.setItem("decipher_plaza_started", "true");
+  } catch (e) {}
+  if (hintEl) setTimeout(() => hintEl.classList.add("dim"), 6000);
+}
+
 load().then(() => {
   statusEl.textContent = "ready";
   startEl.hidden = false;
   raf = requestAnimationFrame(frame);
+
+  const isSmartRefresh = (function() {
+    try {
+      return localStorage.getItem("decipher_plaza_started") === "true" ||
+             sessionStorage.getItem("decipher_plaza_started") === "true";
+    } catch(e) { return false; }
+  })();
+
+  if (isSmartRefresh) {
+    enterPlaza();
+  }
 }).catch(err => {
   console.error("plaza failed to load:", err);
   statusEl.textContent = "could not load the plaza";
   document.getElementById("fail").hidden = false;
 });
 
-startEl.addEventListener("click", () => {
-  bootEl.classList.add("gone");
-  document.body.classList.add("live");
-  if (hintEl) setTimeout(() => hintEl.classList.add("dim"), 6000);
-});
+startEl.addEventListener("click", enterPlaza);
 
 /* ================== loop ================== */
 let raf = 0, lastT = performance.now(), frames = 0, accum = 0, lastQ = 0;

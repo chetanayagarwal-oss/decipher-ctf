@@ -20,6 +20,29 @@ const C = window.DECIPHER;
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const isMobile = innerWidth < 760;
 
+/* ================== state storage ================== */
+const storage = {
+  get(key) {
+    try {
+      const val = localStorage.getItem(key);
+      if (val !== null) return val;
+    } catch (e) {}
+    try {
+      return sessionStorage.getItem(key);
+    } catch (e) {
+      return null;
+    }
+  },
+  set(key, val) {
+    try { localStorage.setItem(key, String(val)); } catch (e) {}
+    try { sessionStorage.setItem(key, String(val)); } catch (e) {}
+  },
+  remove(key) {
+    try { localStorage.removeItem(key); } catch (e) {}
+    try { sessionStorage.removeItem(key); } catch (e) {}
+  }
+};
+
 /* ================== dom ================== */
 const stage = document.getElementById("stage");
 const boot = document.getElementById("boot");
@@ -35,6 +58,17 @@ const registerBtn = document.getElementById("register-btn");
 registerBtn.href = C.registerUrl;
 registerBtn.textContent = C.registerLabel;
 if (C.registerUrl && C.registerUrl !== "#") { registerBtn.target = "_blank"; registerBtn.rel = "noopener"; }
+
+const wordmarkEl = document.querySelector(".wordmark");
+if (wordmarkEl) {
+  wordmarkEl.addEventListener("click", () => {
+    try {
+      sessionStorage.removeItem("decipher_entered");
+      localStorage.removeItem("decipher_started");
+    } catch (e) {}
+    storage.remove("decipher_page");
+  });
+}
 
 /* ================== countdown ================== */
 {
@@ -67,13 +101,13 @@ try {
   boot.classList.add("gone");
   throw err;
 }
-const BASE_PR = Math.min(devicePixelRatio || 1, isMobile ? 2 : 2);
+const BASE_PR = Math.min(devicePixelRatio || 1, isMobile ? 1.25 : 1.5);
 let quality = 1;
 renderer.setPixelRatio(BASE_PR);
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
+renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = !isMobile;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
@@ -99,9 +133,9 @@ const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(
   new THREE.Vector2(innerWidth, innerHeight),
-  isMobile ? 0.55 : 0.72,  // strength
-  0.55,                     // radius
-  0.62                      // threshold — only the neon blows out
+  isMobile ? 0.25 : 0.32,  // calibrated to prevent overblown glow around DECIPHER
+  0.38,                     // radius
+  0.80                      // threshold — keeps solid white text razor sharp
 );
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
@@ -113,6 +147,24 @@ const SW = 1024, SH = 768;
 const sc = document.createElement("canvas");
 sc.width = SW; sc.height = SH;
 const g = sc.getContext("2d");
+
+/* Pre-bake the CRT overlay (scanlines + vignette + border) once —
+   drawImage is ~60x faster than re-computing 154 fillRects per frame. */
+const _crtOverlay = document.createElement("canvas");
+_crtOverlay.width = SW; _crtOverlay.height = SH;
+(function bakeCRTOverlay() {
+  const og = _crtOverlay.getContext("2d");
+  og.fillStyle = "rgba(0,0,0,0.16)";
+  for (let y = 0; y < SH; y += 5) og.fillRect(0, y, SW, 2);
+  const vig = og.createRadialGradient(SW / 2, SH / 2, SH * 0.32, SW / 2, SH / 2, SH * 0.82);
+  vig.addColorStop(0, "rgba(0,0,0,0)");
+  vig.addColorStop(1, "rgba(0,0,0,0.55)");
+  og.fillStyle = vig;
+  og.fillRect(0, 0, SW, SH);
+  og.strokeStyle = "rgba(0,255,204,0.18)";
+  og.lineWidth = 8;
+  og.strokeRect(10, 10, SW - 20, SH - 20);
+})();
 
 /* ---- page model ----
    The CRT gets a short headline at a size that survives being rendered onto a
@@ -146,6 +198,12 @@ pages.push({
 });
 
 let page = 0, reveal = 1, revealTarget = 1, gridOff = 0;
+try {
+  const savedPage = parseInt(storage.get("decipher_page"), 10);
+  if (!isNaN(savedPage) && savedPage >= 0 && savedPage < pages.length) {
+    page = savedPage;
+  }
+} catch (e) {}
 
 /* ---- HTML readout beside the cabinet ---- */
 const roEyebrow = document.getElementById("ro-eyebrow");
@@ -219,154 +277,323 @@ function drawScreen(time) {
   revealCursor = 0;
   g.textAlign = "center";
 
+  // Eyebrow ("CAMPUS CTF · 10 SEPT 2026") in clean, technical monospace
   if (p.eyebrow) {
-    g.font = "700 40px 'JetBrains Mono', monospace";
-    g.fillStyle = "#ff3fb0";
-    g.shadowColor = "rgba(255,0,255,0.9)"; g.shadowBlur = 18;
-    g.fillText(p.eyebrow, SW / 2, 130);
+    g.font = "600 24px 'JetBrains Mono', monospace";
+    g.fillStyle = "#f472b6";
+    g.shadowColor = "rgba(244, 114, 182, 0.4)";
+    g.shadowBlur = 8;
+    if ("letterSpacing" in g) g.letterSpacing = "4px";
+    g.fillText(p.eyebrow, SW / 2, p.pixel ? 185 : 145);
+    if ("letterSpacing" in g) g.letterSpacing = "0px";
     g.shadowBlur = 0;
   }
 
-  g.fillStyle = "#00ffcc";
-  g.shadowColor = "rgba(0,255,204,0.85)";
-  g.shadowBlur = 26;
+  if (p.pixel) {
+    // 1. Top-Left System Boot Prompt
+    g.textAlign = "left";
+    g.textBaseline = "alphabetic";
+    g.font = "600 16px 'JetBrains Mono', monospace";
+    g.fillStyle = "#5eead4";
+    g.shadowColor = "rgba(94, 234, 212, 0.45)";
+    g.shadowBlur = 6;
+    g.fillText("> SYSTEM BOOT...", 80, 95);
+    g.fillText("> INITIATING CTF ENVIRONMENT...", 80, 122);
+    const bootCursor = ((time / 500) | 0) % 2 === 0 ? "_" : " ";
+    g.fillText("> WELCOME, PLAYER" + bootCursor, 80, 149);
+    g.shadowBlur = 0;
 
-  const lines = String(p.head).split("\n");
-  if (p.pixel) g.font = "72px 'Press Start 2P', monospace";
-  else if (p.flag) g.font = "700 62px 'JetBrains Mono', monospace";
-  else g.font = "700 86px 'JetBrains Mono', monospace";
+    // 2. Top-Right Campus CTF / Event Date
+    g.textAlign = "right";
+    g.font = "600 16px 'JetBrains Mono', monospace";
+    g.fillStyle = "#5eead4";
+    g.shadowColor = "rgba(94, 234, 212, 0.45)";
+    g.shadowBlur = 6;
+    g.fillText("CAMPUS CTF", SW - 80, 95);
+    g.fillText(C.eventDateLabel, SW - 80, 122);
+    g.shadowBlur = 0;
 
-  // shrink to fit rather than overflow the bezel
-  let size = p.pixel ? 72 : p.flag ? 62 : 86;
-  const face = p.pixel ? "'Press Start 2P', monospace" : "'JetBrains Mono', monospace";
-  const weight = p.pixel ? "" : "700 ";
-  while (size > 26 && lines.some(l => g.measureText(l).width > SW - 150)) {
-    size -= 4;
-    g.font = weight + size + "px " + face;
-  }
+    // 3. Center Cyber-Frame Box around DECIPHER_
+    const boxW = 630;
+    const boxH = 136;
+    const boxX = (SW - boxW) / 2;
+    const boxY = SH / 2 - 76;
 
-  if (p.flag) { g.fillStyle = "#ff3fb0"; g.shadowColor = "rgba(255,0,255,0.95)"; }
+    g.strokeStyle = "rgba(0, 230, 255, 0.45)";
+    g.lineWidth = 2;
+    g.shadowColor = "rgba(0, 230, 255, 0.5)";
+    g.shadowBlur = 8;
+    g.strokeRect(boxX, boxY, boxW, boxH);
 
-  const lh = size * 1.32;
-  let y = SH / 2 - (lines.length - 1) * lh / 2 - 8;
-  for (const line of lines) { g.fillText(scrambled(line), SW / 2, y); y += lh; }
-  g.shadowBlur = 0;
-
-  // --- hint + cursor ---
-  g.font = "600 26px 'JetBrains Mono', monospace";
-  g.fillStyle = "#9a83c0";
-  g.fillText((p.hint || "") + (((time / 480) | 0) % 2 ? " " : "▍"), SW / 2, SH - 122);
-
-  // --- rule progress dots ---
-  const n = C.rules.length;
-  const gap = 34, r = 7;
-  const x0 = (SW - (n - 1) * gap) / 2;
-  for (let i = 0; i < n; i++) {
-    const active = page === RULE_START + i;
-    const done = page > RULE_START + i;
+    // Tech corner ticks
+    const tick = 10;
     g.beginPath();
-    g.arc(x0 + i * gap, SH - 62, active ? r * 1.35 : r, 0, Math.PI * 2);
-    g.fillStyle = active ? "#00ffcc" : done ? "#00816a" : "#3a2359";
-    g.shadowColor = "rgba(0,255,204,0.85)";
-    g.shadowBlur = active ? 14 : 0;
-    g.fill();
+    g.moveTo(boxX - tick, boxY); g.lineTo(boxX, boxY); g.lineTo(boxX, boxY - tick);
+    g.moveTo(boxX + boxW + tick, boxY); g.lineTo(boxX + boxW, boxY); g.lineTo(boxX + boxW, boxY - tick);
+    g.moveTo(boxX - tick, boxY + boxH); g.lineTo(boxX, boxY + boxH); g.lineTo(boxX, boxY + boxH + tick);
+    g.moveTo(boxX + boxW + tick, boxY + boxH); g.lineTo(boxX + boxW, boxY + boxH); g.lineTo(boxX + boxW, boxY + boxH + tick);
+    g.stroke();
+
+    // Side midpoint ticks
+    g.beginPath();
+    g.moveTo(boxX - 6, boxY + boxH / 2); g.lineTo(boxX, boxY + boxH / 2);
+    g.moveTo(boxX + boxW, boxY + boxH / 2); g.lineTo(boxX + boxW + 6, boxY + boxH / 2);
+    g.stroke();
+    g.shadowBlur = 0;
+
+    // 4. Main Title: DECIPHER_ in Press Start 2P with sharp pixel edges & subtle neon glow
+    const rawText = String(p.head);
+    const dispText = scrambled(rawText);
+    const cursorOn = ((time / 500) | 0) % 2 === 0;
+    const textWithCursor = dispText + (cursorOn ? "_" : " ");
+    
+    const size = 52;
+    g.font = `${size}px 'Press Start 2P', monospace`;
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    if ("letterSpacing" in g) g.letterSpacing = "6px";
+
+    // Occasional, very subtle micro-glitch: once every ~7.5s for 80ms
+    const screenGlitchCycle = time % 7500;
+    const isScreenGlitch = screenGlitchCycle > 7380 && screenGlitchCycle < 7450;
+    const screenJitter = isScreenGlitch ? ((time % 2 === 0) ? 1.5 : -1.5) : 0;
+    const textX = SW / 2 + screenJitter;
+    const textY = boxY + boxH / 2;
+
+    // 1. Subtle, gentle purple/cyan neon aura
+    g.shadowColor = "rgba(168, 85, 247, 0.55)";
+    g.shadowBlur = 14;
+    g.fillStyle = "rgba(224, 242, 254, 0.9)";
+    g.fillText(textWithCursor, textX, textY);
+
+    // 2. Pure, solid, crisp pale-cyan/white core with 100% sharp pixel edges (no blur, no RGB split)
+    g.shadowBlur = 0;
+    g.fillStyle = "#ffffff";
+    g.fillText(textWithCursor, textX, textY);
+    if ("letterSpacing" in g) g.letterSpacing = "0px";
+
+    // 5. Below Box: [ PRESS THE CONTROLS ]
+    g.font = "600 20px 'JetBrains Mono', monospace";
+    g.fillStyle = "#67e8f9";
+    g.shadowColor = "rgba(103, 232, 249, 0.5)";
+    g.shadowBlur = 8;
+    g.textAlign = "center";
+    g.textBaseline = "alphabetic";
+    if ("letterSpacing" in g) g.letterSpacing = "3px";
+    g.fillText("[ PRESS THE CONTROLS ]", SW / 2, boxY + boxH + 62);
+    if ("letterSpacing" in g) g.letterSpacing = "0px";
+    g.shadowBlur = 0;
+
+    // 6. Bottom-Left Terminal Menu
+    g.textAlign = "left";
+    g.font = "600 15px 'JetBrains Mono', monospace";
+    g.fillStyle = "#34d399";
+    g.shadowColor = "rgba(52, 211, 153, 0.35)";
+    g.shadowBlur = 6;
+    const menuY = 605;
+    g.fillText("> PLAY", 80, menuY);
+    g.fillText("> EXPLORE", 80, menuY + 24);
+    g.fillText("> SOLVE", 80, menuY + 48);
+    g.fillText("> CLAIM", 80, menuY + 72);
+    g.shadowBlur = 0;
+
+    // 7. Bottom-Right Terminal Secrets Box
+    const sBoxW = 190;
+    const sBoxH = 80;
+    const sBoxX = SW - 80 - sBoxW;
+    const sBoxY = 595;
+    g.strokeStyle = "rgba(0, 220, 255, 0.28)";
+    g.lineWidth = 1;
+    g.strokeRect(sBoxX, sBoxY, sBoxW, sBoxH);
+
+    g.textAlign = "center";
+    g.font = "600 12px 'JetBrains Mono', monospace";
+    g.fillStyle = "#a5b4fc";
+    g.shadowColor = "rgba(165, 180, 252, 0.4)";
+    g.shadowBlur = 4;
+    g.fillText("SOME SECRETS", sBoxX + sBoxW / 2, sBoxY + 25);
+    g.fillText("DON'T STAY HIDDEN", sBoxX + sBoxW / 2, sBoxY + 44);
+    g.fillText("FOREVER.", sBoxX + sBoxW / 2, sBoxY + 63);
+    g.shadowBlur = 0;
+
+  } else {
+    g.textAlign = "center";
+    g.textBaseline = "alphabetic";
+
+    g.fillStyle = p.flag ? "#ff3fb0" : "#e0fbff";
+    g.shadowColor = p.flag ? "rgba(255,0,255,0.7)" : "rgba(0,255,204,0.6)";
+    g.shadowBlur = 18;
+
+    const lines = String(p.head).split("\n");
+    let size = p.flag ? 58 : 78;
+    const face = "'JetBrains Mono', monospace";
+    g.font = "700 " + size + "px " + face;
+
+    while (size > 26 && lines.some(l => g.measureText(l).width > SW - 160)) {
+      size -= 4;
+      g.font = "700 " + size + "px " + face;
+    }
+
+    const lh = size * 1.32;
+    let y = SH / 2 - (lines.length - 1) * lh / 2 - 8;
+    for (const line of lines) { g.fillText(scrambled(line), SW / 2, y); y += lh; }
+    g.shadowBlur = 0;
+
+    // --- hint + cursor ---
+    g.font = "600 20px 'JetBrains Mono', monospace";
+    g.fillStyle = "#9d8ba9";
+    if ("letterSpacing" in g) g.letterSpacing = "3px";
+    g.fillText((p.hint || "") + (((time / 480) | 0) % 2 ? " " : "▍"), SW / 2, SH - 122);
+    if ("letterSpacing" in g) g.letterSpacing = "0px";
+
+    // --- rule progress dots ---
+    const n = C.rules.length;
+    const gap = 34, r = 7;
+    const x0 = (SW - (n - 1) * gap) / 2;
+    for (let i = 0; i < n; i++) {
+      const active = page === RULE_START + i;
+      const done = page > RULE_START + i;
+      g.beginPath();
+      g.arc(x0 + i * gap, SH - 62, active ? r * 1.35 : r, 0, Math.PI * 2);
+      g.fillStyle = active ? "#00ffcc" : done ? "#00816a" : "#3a2359";
+      g.shadowColor = "rgba(0,255,204,0.85)";
+      g.shadowBlur = active ? 14 : 0;
+      g.fill();
+    }
+    g.shadowBlur = 0;
   }
-  g.shadowBlur = 0;
 
-  // --- CRT scanlines + vignette ---
-  g.fillStyle = "rgba(0,0,0,0.16)";
-  for (let y = 0; y < SH; y += 5) g.fillRect(0, y, SW, 2);
-  const vig = g.createRadialGradient(SW / 2, SH / 2, SH * 0.32, SW / 2, SH / 2, SH * 0.82);
-  vig.addColorStop(0, "rgba(0,0,0,0)");
-  vig.addColorStop(1, "rgba(0,0,0,0.55)");
-  g.fillStyle = vig;
-  g.fillRect(0, 0, SW, SH);
-
-  g.strokeStyle = "rgba(0,255,204,0.18)";
-  g.lineWidth = 8;
-  g.strokeRect(10, 10, SW - 20, SH - 20);
+  // --- CRT scanlines + vignette (pre-baked, single drawImage call) ---
+  g.drawImage(_crtOverlay, 0, 0);
 }
 
 /* ================== marquee canvas ================== */
 // Canvas aspect must match the marquee mesh (6.4 x 2.8 = 2.286:1) or the
 // lettering gets stretched vertically.
-const MW = 2048, MH = 896;
+// Halved from 2048x896 → 1024x448 to reduce GPU texture upload bandwidth by 75%.
+const MW = 1024, MH = 448;
 const mc = document.createElement("canvas");
 mc.width = MW; mc.height = MH;
 const mg = mc.getContext("2d");
 
-function drawMarquee() {
+function drawMarquee(time = performance.now()) {
   const cx = MW / 2, cy = MH / 2;
   mg.clearRect(0, 0, MW, MH);
 
-  // --- backlit acrylic: bright behind the lettering, falling off to the edges
-  const glow = mg.createRadialGradient(cx, cy, 0, cx, cy, MW * 0.62);
-  glow.addColorStop(0.00, "#4a1170");
-  glow.addColorStop(0.45, "#2a0a4a");
-  glow.addColorStop(1.00, "#120428");
+  // --- dark void acrylic background
+  const glow = mg.createRadialGradient(cx, cy, 0, cx, cy, MW * 0.65);
+  glow.addColorStop(0.00, "#100220");
+  glow.addColorStop(0.55, "#080112");
+  glow.addColorStop(1.00, "#030006");
   mg.fillStyle = glow;
   mg.fillRect(0, 0, MW, MH);
 
-  // faint horizontal banding, like light through textured acrylic
-  mg.fillStyle = "rgba(255,255,255,0.022)";
-  for (let y = 0; y < MH; y += 8) mg.fillRect(0, y, MW, 3);
+  // Subtle horizontal CRT scanline texture in background
+  mg.fillStyle = "rgba(0, 0, 0, 0.22)";
+  for (let y = 0; y < MH; y += 6) mg.fillRect(0, y, MW, 2);
 
-  // --- housing: magenta neon tube inside a dark frame
-  mg.strokeStyle = "#1a0730"; mg.lineWidth = 34;
-  mg.strokeRect(17, 17, MW - 34, MH - 34);
-  mg.strokeStyle = "#ff2ff5"; mg.lineWidth = 9;
-  mg.shadowColor = "#ff00ff"; mg.shadowBlur = 46;
-  mg.strokeRect(44, 44, MW - 88, MH - 88);
+  // Outer bezel housing
+  mg.strokeStyle = "#160527"; mg.lineWidth = 28;
+  mg.strokeRect(14, 14, MW - 28, MH - 28);
+
+  // Glowing neon magenta frame (matches reference image)
+  mg.strokeStyle = "#d946ef"; mg.lineWidth = 8;
+  mg.shadowColor = "#e879f9"; mg.shadowBlur = 20;
+  if (typeof mg.roundRect === "function") {
+    mg.beginPath();
+    mg.roundRect(42, 42, MW - 84, MH - 84, 14);
+    mg.stroke();
+  } else {
+    mg.strokeRect(42, 42, MW - 84, MH - 84);
+  }
   mg.shadowBlur = 0;
-  mg.strokeStyle = "rgba(0,255,204,0.5)"; mg.lineWidth = 2.5;
-  mg.strokeRect(62, 62, MW - 124, MH - 124);
 
-  // --- DECIPHER, and nothing else
+  // Inner subtle magenta accent hairline
+  mg.strokeStyle = "rgba(232, 121, 249, 0.4)"; mg.lineWidth = 2.5;
+  if (typeof mg.roundRect === "function") {
+    mg.beginPath();
+    mg.roundRect(56, 56, MW - 112, MH - 112, 10);
+    mg.stroke();
+  } else {
+    mg.strokeRect(56, 56, MW - 112, MH - 112);
+  }
+
+  // --- Top header: LNMIIT (left), CTF 2026 (right) in pixel font ---
+  mg.font = "28px 'Press Start 2P', monospace";
+  mg.fillStyle = "#ffffff";
+  mg.shadowColor = "rgba(232, 121, 249, 0.45)";
+  mg.shadowBlur = 8;
+  mg.textAlign = "left";
+  mg.textBaseline = "middle";
+  mg.fillText("LNMIIT", 100, 118);
+
+  mg.textAlign = "right";
+  mg.fillText("CTF 2026", MW - 100, 118);
+  mg.shadowBlur = 0;
+
+  // --- Center: DECIPHER_ (Large, bold, crisp pixel edges with subtle violet neon aura) ---
+  const cursorOn = ((time / 500) | 0) % 2 === 0;
+  const marqueeText = "DECIPHER" + (cursorOn ? "_" : " ");
+  // Store state for dirty-checking in the render loop
+  drawMarquee._lastCursorOn = cursorOn;
+  const size = 138;
+  mg.font = `${size}px 'Press Start 2P', monospace`;
   mg.textAlign = "center";
   mg.textBaseline = "middle";
-  const TEXT = "DECIPHER";
+  if ("letterSpacing" in mg) mg.letterSpacing = "6px";
 
-  // fit the word to the panel instead of trusting a hardcoded size
-  let size = 250;
-  mg.font = `700 ${size}px Syncopate, sans-serif`;
-  const maxW = MW - 300;
-  while (size > 60 && mg.measureText(TEXT).width > maxW) {
-    size -= 6;
-    mg.font = `700 ${size}px Syncopate, sans-serif`;
-  }
-  mg.letterSpacing = Math.round(size * 0.06) + "px";
-  mg.font = `700 ${size}px Syncopate, sans-serif`;
+  // Occasional, very subtle micro-glitch: once every 8s for 80ms, tiny 2px jitter
+  const glitchCycle = time % 8000;
+  const isGlitch = glitchCycle > 7880 && glitchCycle < 7960;
+  const glitchDx = isGlitch ? ((time % 2 === 0) ? 2 : -2) : 0;
+  const textX = cx + glitchDx;
+  const textY = cy - 8;
 
-  // outer halo, built in passes so it reads as light not blur
-  mg.shadowColor = "#ff00ff";
-  for (const b of [90, 60, 34]) {
-    mg.shadowBlur = b;
-    mg.fillStyle = "rgba(255,120,255,0.30)";
-    mg.fillText(TEXT, cx, cy);
-  }
-  mg.shadowColor = "#00ffcc";
-  mg.shadowBlur = 46;
-  mg.fillStyle = "rgba(120,255,235,0.22)";
-  mg.fillText(TEXT, cx, cy);
+  // 1. Soft, subtle purple/magenta neon aura behind letters
+  mg.shadowColor = "rgba(168, 85, 247, 0.7)";
+  mg.shadowBlur = 18;
+  mg.fillStyle = "rgba(224, 231, 255, 0.85)";
+  mg.fillText(marqueeText, textX, textY);
+
+  // 2. Pure, solid, crisp white core with sharp pixel edges (no blur, no RGB split)
   mg.shadowBlur = 0;
+  mg.fillStyle = "#ffffff";
+  mg.fillText(marqueeText, textX, textY);
+  if ("letterSpacing" in mg) mg.letterSpacing = "0px";
 
-  // chrome face: cyan rim at the top, magenta beneath, white hot band across
-  // the middle where a real backlit sign catches the tube
-  const face = mg.createLinearGradient(0, cy - size * 0.62, 0, cy + size * 0.62);
-  face.addColorStop(0.00, "#9ffff0");
-  face.addColorStop(0.30, "#ffffff");
-  face.addColorStop(0.52, "#ffffff");
-  face.addColorStop(0.72, "#ffb9fb");
-  face.addColorStop(1.00, "#c266ff");
-  mg.fillStyle = face;
-  mg.fillText(TEXT, cx, cy);
+  // --- Bottom subtitle: HACK   ▪   EXPLORE   ▪   DECIPHER ---
+  mg.font = "22px 'Press Start 2P', monospace";
+  mg.fillStyle = "#f5d0fe";
+  mg.shadowColor = "rgba(216, 180, 254, 0.35)";
+  mg.shadowBlur = 6;
+  mg.textBaseline = "middle";
 
-  // crisp edge so bloom has something solid to bite on
-  mg.lineWidth = Math.max(2, size * 0.012);
-  mg.strokeStyle = "rgba(255,255,255,0.85)";
-  mg.strokeText(TEXT, cx, cy);
+  const subY = MH - 130;
+  const wHack = mg.measureText("HACK").width;
+  const wExpl = mg.measureText("EXPLORE").width;
+  const wDeci = mg.measureText("DECIPHER").width;
+  const sq = 8;     // retro square dot size
+  const pad = 36;   // spacing around dot
+  const totalSubW = wHack + pad + sq + pad + wExpl + pad + sq + pad + wDeci;
+  
+  let curX = cx - totalSubW / 2;
+  // HACK
+  mg.textAlign = "left";
+  mg.fillText("HACK", curX, subY);
+  curX += wHack + pad;
+  // first square dot
+  mg.fillRect(curX, subY - sq / 2, sq, sq);
+  curX += sq + pad;
+  // EXPLORE
+  mg.fillText("EXPLORE", curX, subY);
+  curX += wExpl + pad;
+  // second square dot
+  mg.fillRect(curX, subY - sq / 2, sq, sq);
+  curX += sq + pad;
+  // DECIPHER
+  mg.fillText("DECIPHER", curX, subY);
 
-  mg.letterSpacing = "0px";
+  mg.shadowBlur = 0;
 }
 
 /* ================== cabinet ================== */
@@ -423,7 +650,9 @@ function buildCabinet(env) {
     m.position.z = z;
     m.castShadow = m.receiveShadow = true;
     body.add(m);
-    clickable.push(m);
+    // Side panels deliberately excluded from clickable — their extruded bezier
+    // geometry has thousands of triangles that make raycasting slow. The
+    // control panel, screen, and buttons cover all useful click areas.
   }
 
   const W = 6.4;
@@ -475,6 +704,9 @@ function buildCabinet(env) {
   drawMarquee();
   marqueeTex = new THREE.CanvasTexture(mc);
   marqueeTex.colorSpace = THREE.SRGBColorSpace;
+  marqueeTex.minFilter = THREE.LinearFilter;
+  marqueeTex.magFilter = THREE.LinearFilter;
+  marqueeTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   const marquee = new THREE.Mesh(
     new THREE.PlaneGeometry(W, 2.8),
     new THREE.MeshBasicMaterial({ map: marqueeTex, toneMapped: false })
@@ -750,6 +982,14 @@ async function loadPlaza() {
 
 /* ================== audio ================== */
 let ambience = null, thump = null, soundOn = true;
+const savedSound = storage.get("decipher_sound");
+if (savedSound !== null) {
+  soundOn = savedSound === "on";
+  if (soundBtn) {
+    soundBtn.textContent = soundOn ? "♪ ON" : "♪ OFF";
+    soundBtn.setAttribute("aria-label", soundOn ? "Mute sound" : "Unmute sound");
+  }
+}
 const srcFor = base => {
   const a = document.createElement("audio");
   return base + (a.canPlayType("audio/ogg") ? ".ogg" : ".mp3");
@@ -777,6 +1017,8 @@ function click() {
 soundBtn.addEventListener("click", () => {
   soundOn = !soundOn;
   soundBtn.textContent = soundOn ? "♪ ON" : "♪ OFF";
+  soundBtn.setAttribute("aria-label", soundOn ? "Mute sound" : "Unmute sound");
+  storage.set("decipher_sound", soundOn ? "on" : "off");
   if (ambience) ambience.volume = soundOn ? 0.28 : 0;
 });
 
@@ -798,6 +1040,20 @@ function advance() {
   if (busy || !live) return;
   busy = true;
   page = (page + 1) % pages.length;
+  storage.set("decipher_page", page);
+  reveal = 0; revealTarget = 1;
+  syncReadout();
+  flashIndicators();
+  click();
+  setTimeout(() => { busy = false; }, 260);
+  if (!hintDimmed) { hintDimmed = true; hudHint.classList.add("dim"); }
+}
+
+function stepBack() {
+  if (busy || !live) return;
+  busy = true;
+  page = (page - 1 + pages.length) % pages.length;
+  storage.set("decipher_page", page);
   reveal = 0; revealTarget = 1;
   syncReadout();
   flashIndicators();
@@ -829,7 +1085,7 @@ addEventListener("pointermove", e => {
   const amp = reduceMotion ? 0.12 : 0.42;
   target.yaw = -Math.PI / 2 + nx * amp;
   target.pitch = ny * (reduceMotion ? 0.05 : 0.16);
-});
+}, { passive: true });
 
 renderer.domElement.addEventListener("click", e => {
   if (!live) return;
@@ -855,6 +1111,10 @@ addEventListener("keydown", e => {
     e.preventDefault();
     spring(joystickPivot.rotation, "x", 0.3, 0, 190);
     advance();
+  } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+    e.preventDefault();
+    spring(joystickPivot.rotation, "x", -0.3, 0, 190);
+    stepBack();
   }
 });
 
@@ -874,7 +1134,9 @@ async function bootUp() {
       await Promise.all([
         document.fonts.load("700 110px Syncopate"),
         document.fonts.load("600 31px 'JetBrains Mono'"),
+        document.fonts.load("600 24px 'JetBrains Mono'"),
         document.fonts.load("700 40px 'JetBrains Mono'"),
+        document.fonts.load("116px 'VT323'"),
         document.fonts.load("46px 'Press Start 2P'")
       ]).catch(() => {});
       await document.fonts.ready.catch(() => {});
@@ -905,12 +1167,29 @@ async function bootUp() {
   }
   bootStatus.textContent = "ready";
   bootStart.hidden = false;
+
+  // Only restore directly into the scene if the user refreshed/reloaded while already active in this tab
+  const isReloadInScene = (function() {
+    try {
+      // Clear legacy permanent storage key from previous versions
+      localStorage.removeItem("decipher_started");
+      return sessionStorage.getItem("decipher_entered") === "true";
+    } catch(e) { return false; }
+  })();
+
+  if (isReloadInScene) {
+    enterScene();
+  }
 }
 
-bootStart.addEventListener("click", () => {
+function enterScene() {
   boot.classList.add("gone");
   document.body.classList.add("live");
   live = true;
+  try {
+    sessionStorage.setItem("decipher_entered", "true");
+  } catch (e) {}
+  storage.set("decipher_page", page);
   startAudio();
   click();
   reveal = 0; revealTarget = 1;
@@ -922,10 +1201,14 @@ bootStart.addEventListener("click", () => {
   if (SCENE === "plaza") {
     loadPlaza().catch(err => console.warn("plaza unavailable, keeping grid:", err));
   }
-});
+}
+
+bootStart.addEventListener("click", enterScene);
 
 /* ================== render loop ================== */
-let raf = 0, lastT = performance.now(), frames = 0, accum = 0, lastQ = 0, lastScreen = 0;
+let raf = 0, lastT = performance.now(), frames = 0, accum = 0, lastQ = 0, lastScreen = 0, lastMarquee = 0;
+/* Marquee dirty-check state */
+let _marqueeCursorState = null, _marqueeGlitchState = false;
 
 function frame(now) {
   raf = requestAnimationFrame(frame);
@@ -945,14 +1228,30 @@ function frame(now) {
     }
   }
 
-  /* screen redraw — 30fps is plenty for a CRT */
+  /* screen redraw:
+     - During reveal scrambler: up to 25 FPS (40ms) so decoding feels snappy
+     - When settled (reveal=1): 15 FPS (66ms) — CRT text rarely changes     */
   reveal += (revealTarget - reveal) * 0.09;
   if (reveal > 0.995) reveal = 1;
   revealChars = Math.floor(reveal * 340);
-  if (now - lastScreen > 33) {
+  const screenInterval = reveal < 1 ? 40 : 66;
+  if (now - lastScreen > screenInterval) {
     lastScreen = now;
     drawScreen(now);
     screenTex.needsUpdate = true;
+  }
+
+  /* marquee redraw — only when cursor blink state or glitch state changes.
+     Typically fires once per 500ms (cursor blink), saves ~75% of texture uploads. */
+  const mCursor = ((now / 500) | 0) % 2 === 0;
+  const mGlitchCycle = now % 8000;
+  const mGlitch = mGlitchCycle > 7880 && mGlitchCycle < 7960;
+  if (mCursor !== _marqueeCursorState || mGlitch !== _marqueeGlitchState || now - lastMarquee > 2000) {
+    _marqueeCursorState = mCursor;
+    _marqueeGlitchState = mGlitch;
+    lastMarquee = now;
+    drawMarquee(now);
+    if (marqueeTex) marqueeTex.needsUpdate = true;
   }
 
   stepSprings(now);

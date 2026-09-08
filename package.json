@@ -1,0 +1,8 @@
+{
+  "name": "decipher-ctf",
+  "version": "1.0.0",
+  "description": "DECIPHER — campus CTF site",
+  "scripts": {
+    "dev": "python -m http.server 8000"
+  }
+}

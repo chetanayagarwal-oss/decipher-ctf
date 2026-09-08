@@ -28,7 +28,7 @@ float gnoise(vec3 p){
 }
 float fbm(vec3 p){
   float v = 0.0, a = 0.5;
-  for (int i = 0; i < 5; i++){ v += a * gnoise(p); p *= 2.03; a *= 0.5; }
+  for (int i = 0; i < 3; i++){ v += a * gnoise(p); p *= 2.03; a *= 0.5; }
   return v;
 }`;
 
@@ -283,7 +283,7 @@ export function buildSpace(scene, { isMobile = false, envMap = null } = {}) {
   giant.position.set(-150, 78, -330);
   const giantBody = makePlanet({
     radius: 46, low: 0x2a0f5c, high: 0x8b3ffb, rim: 0x00ffcc,
-    bands: 7.0, warp: 2.1, rough: 1.4, segments: isMobile ? 32 : 64
+    bands: 7.0, warp: 2.1, rough: 1.4, segments: isMobile ? 24 : 48
   });
   giant.add(giantBody);
   planets.push(giantBody);
@@ -299,7 +299,7 @@ export function buildSpace(scene, { isMobile = false, envMap = null } = {}) {
   /* --- warm giant on the opposite side --- */
   const amber = makePlanet({
     radius: 30, low: 0x5c1c07, high: 0xffb347, rim: 0xff5e7a,
-    bands: 9.5, warp: 2.8, rough: 1.9, segments: isMobile ? 24 : 48
+    bands: 9.5, warp: 2.8, rough: 1.9, segments: isMobile ? 18 : 36
   });
   amber.position.set(230, -40, -420);
   root.add(amber);
@@ -309,7 +309,7 @@ export function buildSpace(scene, { isMobile = false, envMap = null } = {}) {
   /* --- small icy world, close enough to read detail --- */
   const icy = makePlanet({
     radius: 11, low: 0x07314a, high: 0x7ff0ff, rim: 0x00ffcc,
-    bands: 4.0, warp: 3.4, rough: 2.6, segments: isMobile ? 20 : 40
+    bands: 4.0, warp: 3.4, rough: 2.6, segments: isMobile ? 16 : 32
   });
   icy.position.set(96, 54, -190);
   root.add(icy);
@@ -365,27 +365,43 @@ export function buildSpace(scene, { isMobile = false, envMap = null } = {}) {
   root.add(shards);
 
   /* --- per-frame --- */
+  /* Pre-initialize all asteroid matrices once so the per-frame loop only
+     needs to rotate the whole belt group — no trigonometry or buffer
+     re-uploads every frame. Individual rock tumbling is preserved via
+     the one-time euler random seeding baked into each instance's initial matrix. */
+  const beltGroup = new THREE.Group();
+  const m4init = new THREE.Matrix4();
+  const qinit = new THREE.Quaternion();
+  const einit = new THREE.Euler();
+  const svinit = new THREE.Vector3();
+  for (let i = 0; i < COUNT; i++) {
+    const b = belt[i];
+    einit.set(b.ex, b.ey, 0);
+    qinit.setFromEuler(einit);
+    svinit.setScalar(b.s);
+    m4init.compose(
+      { x: Math.cos(b.a) * b.r, y: b.y, z: Math.sin(b.a) * b.r - 120 },
+      qinit, svinit
+    );
+    rocks.setMatrixAt(i, m4init);
+  }
+  rocks.instanceMatrix.needsUpdate = true;
+  // Move the rocks out of the root group so we can rotate just the belt.
+  root.remove(rocks);
+  beltGroup.add(rocks);
+  root.add(beltGroup);
+
   function update(nowMs) {
     const t = nowMs * 0.001;
     for (const p of planets) p.userData.mat.uniforms.uTime.value = t;
     for (const s of spin) s.obj.rotation.y += s.y * 16;
     stars.material.uniforms.uTime.value = t;
 
-    for (let i = 0; i < COUNT; i++) {
-      const b = belt[i];
-      b.a += b.sp * 16;
-      b.ex += b.rx; b.ey += b.ry;
-      e.set(b.ex, b.ey, 0);
-      q.setFromEuler(e);
-      sv.setScalar(b.s);
-      m4.compose(
-        { x: Math.cos(b.a) * b.r, y: b.y, z: Math.sin(b.a) * b.r - 120 },
-        q, sv
-      );
-      rocks.setMatrixAt(i, m4);
-    }
-    rocks.instanceMatrix.needsUpdate = true;
+    // Rotate the entire asteroid belt as a group — single matrix multiply
+    // instead of 260 trigonometry + quaternion + matrix compositions.
+    beltGroup.rotation.y += 0.000055;
 
+    // Shards tumble independently (only 6-16 objects, cheap)
     for (const s of shards.children) {
       s.rotation.x += s.userData.rx;
       s.rotation.y += s.userData.ry;

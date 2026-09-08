@@ -28,7 +28,7 @@ try {
   document.getElementById("loading-screen").style.display = "none";
   throw err;
 }
-const BASE_PR = Math.min(devicePixelRatio || 1, narrow ? 1.5 : 2);
+const BASE_PR = Math.min(devicePixelRatio || 1, narrow ? 1.25 : 1.5);
 let quality = 1;
 renderer.setPixelRatio(BASE_PR);
 renderer.setSize(innerWidth, innerHeight);
@@ -279,6 +279,13 @@ addEventListener("keydown", e => { if (e.key === "Escape" && modalOpen) closeMod
 /* ================== audio ================== */
 let ambience = null, thump = null, soundOn = true;
 const soundBtn = document.getElementById("sound-toggle");
+try {
+  const savedSound = localStorage.getItem("decipher_sound");
+  if (savedSound !== null) {
+    soundOn = savedSound === "on";
+    if (soundBtn) soundBtn.textContent = soundOn ? "♪ ON" : "♪ OFF";
+  }
+} catch (e) {}
 const srcFor = b => { const a = document.createElement("audio"); return b + (a.canPlayType("audio/ogg") ? ".ogg" : ".mp3"); };
 function startAudio() {
   try {
@@ -299,6 +306,7 @@ function playThump() {
 soundBtn.addEventListener("click", () => {
   soundOn = !soundOn;
   soundBtn.textContent = soundOn ? "♪ ON" : "♪ OFF";
+  try { localStorage.setItem("decipher_sound", soundOn ? "on" : "off"); } catch (e) {}
   if (ambience) ambience.volume = soundOn ? 0.3 : 0;
 });
 
@@ -430,13 +438,19 @@ function step(i, total) {
   pctEl.textContent = pct + "%";
 }
 
-enterBtn.addEventListener("click", () => {
+function enterVault() {
   loadingScreen.classList.add("revealed", "gone");
   document.body.classList.add("entered");
   entered = true;
+  try {
+    localStorage.setItem("decipher_vault_started", "true");
+    sessionStorage.setItem("decipher_vault_started", "true");
+  } catch (e) {}
   startAudio();
   playThump();
-});
+}
+
+enterBtn.addEventListener("click", enterVault);
 
 /* ================== render loop ================== */
 const rotBuffer = new THREE.Quaternion().setFromEuler(rotationTargets[0].rotation);
@@ -506,4 +520,15 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-boot().then(() => { raf = requestAnimationFrame(frame); });
+boot().then(() => {
+  raf = requestAnimationFrame(frame);
+  const isSmartRefresh = (function() {
+    try {
+      return localStorage.getItem("decipher_vault_started") === "true" ||
+             sessionStorage.getItem("decipher_vault_started") === "true";
+    } catch(e) { return false; }
+  })();
+  if (isSmartRefresh) {
+    enterVault();
+  }
+});
