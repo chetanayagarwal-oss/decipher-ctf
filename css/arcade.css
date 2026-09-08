@@ -161,10 +161,10 @@ body.live .hud { opacity: 1; }
 
 /* ---- readout: the CRT's words, rendered as crisp DOM text ---- */
 .readout {
-  position: fixed; left: clamp(16px, 3.5vw, 44px); top: 50%;
-  transform: translateY(-50%);
+  position: fixed; left: clamp(16px, 3.5vw, 44px); top: auto;
+  bottom: 160px; transform: none;
   width: min(310px, 30vw);
-  right: auto; bottom: auto;
+  right: auto;
   display: block;
   will-change: contents;
   contain: layout style;
@@ -201,7 +201,7 @@ body.live .hud { opacity: 1; }
 @media (max-width: 760px) {
   .readout {
     left: 14px; right: 14px; width: auto;
-    top: auto; bottom: 128px; transform: none;
+    top: auto; bottom: 148px; transform: none;
     text-align: left;
   }
   .ro-body { font-size: 12.5px; }

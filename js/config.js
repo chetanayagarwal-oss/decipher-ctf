@@ -12,7 +12,7 @@ const DECIPHER = {
   organizer: "Cybersecurity Club",    // TODO: your club name
 
   /* ---- REGISTRATION (placeholder — swap the URL when ready) ---- */
-  registerUrl: "#",                   // e.g. "https://forms.gle/xxxx"
+  registerUrl: "https://decipher2026.tech/teams",  // registration page
   registerLabel: "REGISTER",
 
   /* ---- WHAT IS A CTF ----
