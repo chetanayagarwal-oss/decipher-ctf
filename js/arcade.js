@@ -65,9 +65,10 @@ const soundBtn = document.getElementById("sound-btn");
 document.querySelectorAll("[data-date-label]").forEach(e => e.textContent = C.eventDateLabel);
 document.querySelectorAll("[data-venue]").forEach(e => e.textContent = C.venue.toUpperCase());
 const registerBtn = document.getElementById("register-btn");
-registerBtn.href = C.registerUrl;
-registerBtn.textContent = C.registerLabel;
-if (C.registerUrl && C.registerUrl !== "#") { registerBtn.target = "_blank"; registerBtn.rel = "noopener"; }
+registerBtn.href = "https://decipher2026.tech/teams";
+registerBtn.target = "_blank";
+registerBtn.rel = "noopener noreferrer";
+registerBtn.textContent = C.registerLabel || "REGISTER";
 
 const wordmarkEl = document.querySelector(".wordmark");
 if (wordmarkEl) {
