@@ -641,8 +641,8 @@ const clickable = [];
 
 function buildCabinet(env) {
   const bodyMat = new THREE.MeshPhysicalMaterial({
-    color: 0x7b2cbf, roughness: 0.22, metalness: 0.15,
-    clearcoat: 1, clearcoatRoughness: 0.08, envMap: env, envMapIntensity: 0.85
+    color: 0x7b2cbf, roughness: 0.25, metalness: 0.12,
+    clearcoat: 1, clearcoatRoughness: 0.14, envMap: env, envMapIntensity: 0.6
   });
   const interiorMat = new THREE.MeshStandardMaterial({ color: 0x2c0a52, roughness: 0.75, metalness: 0.05, envMap: env, envMapIntensity: 0.25 });
   const bezelMat = new THREE.MeshStandardMaterial({ color: 0x140826, roughness: 0.92, metalness: 0.1 });
@@ -672,7 +672,7 @@ function buildCabinet(env) {
   s.lineTo(0, 0);
 
   const sideGeom = new THREE.ExtrudeGeometry(s, {
-    depth: 0.32, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 4, curveSegments: 14
+    depth: 0.32, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 6, curveSegments: 28
   });
   for (const z of [-3.5, 3.18]) {
     const m = new THREE.Mesh(sideGeom, bodyMat);
@@ -834,7 +834,7 @@ function buildCabinet(env) {
   const trimMat = new THREE.MeshBasicMaterial({ color: 0xff4dff, toneMapped: false });
   for (const z of [-3.55, 3.23]) {
     const curve = new THREE.CatmullRomCurve3(pts2d.map(p => new THREE.Vector3(p.x, p.y, z)));
-    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 90, 0.055, 8, false), trimMat);
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 90, 0.055, 12, false), trimMat);
     body.add(tube);
   }
 
@@ -864,9 +864,16 @@ function buildLights() {
   }
   scene.add(key);
 
-  const rim = new THREE.DirectionalLight(0xa855f7, 1.0);
-  rim.position.set(-16, 9, -14);
+  // Rim light: repositioned higher and more behind for a clean edge highlight
+  // without splotchy purple flooding. Reduced intensity to avoid reflection artifacts.
+  const rim = new THREE.DirectionalLight(0xc77dff, 0.55);
+  rim.position.set(-12, 18, -10);
   scene.add(rim);
+
+  // Soft front-fill from the left side to smooth edge transitions
+  const fill = new THREE.DirectionalLight(0x8b5cf6, 0.35);
+  fill.position.set(-10, 6, 18);
+  scene.add(fill);
 
   // screen spill onto the control panel + joystick
   const spill = new THREE.PointLight(0x00ffcc, 26, 11, 2);
