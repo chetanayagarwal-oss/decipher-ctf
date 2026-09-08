@@ -26,7 +26,7 @@ html, body {
   overscroll-behavior: none;
 }
 
-#stage { position: fixed; inset: 0; }
+#stage { position: fixed; inset: 0; contain: strict; }
 #stage canvas { display: block; width: 100%; height: 100%; }
 
 ::selection { background: var(--cyan); color: #05020d; }
@@ -39,6 +39,8 @@ html, body {
     radial-gradient(900px 500px at 50% 45%, rgba(123, 44, 191, 0.28), transparent 70%),
     linear-gradient(180deg, #10002b, #08010f 70%);
   transition: opacity .9s ease, visibility .9s;
+  will-change: opacity;
+  contain: layout style;
 }
 .boot.gone { opacity: 0; visibility: hidden; pointer-events: none; }
 .boot-inner { text-align: center; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 26px; }
@@ -70,8 +72,10 @@ html, body {
   box-shadow: 0 0 30px rgba(0, 255, 204, 0.45);
   animation: pulse 1.5s ease-in-out infinite;
   transition: transform .15s ease;
+  will-change: transform;
+  transform: translateZ(0); /* force GPU compositing */
 }
-.boot-start:hover { transform: scale(1.04); }
+.boot-start:hover { transform: scale(1.04) translateZ(0); }
 @keyframes pulse {
   0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 204, 0.3); }
   50% { box-shadow: 0 0 46px rgba(0, 255, 204, 0.75); }
@@ -85,6 +89,8 @@ html, body {
   padding: 22px clamp(16px, 3.5vw, 44px);
   opacity: 0; transition: opacity 1s ease .25s;
   pointer-events: none;
+  will-change: opacity;
+  contain: layout style;
 }
 body.live .hud { opacity: 1; }
 .hud > *, .hud a, .hud button { pointer-events: auto; }
@@ -160,6 +166,8 @@ body.live .hud { opacity: 1; }
   width: min(310px, 30vw);
   right: auto; bottom: auto;
   display: block;
+  will-change: contents;
+  contain: layout style;
 }
 .ro-frame {
   position: relative;

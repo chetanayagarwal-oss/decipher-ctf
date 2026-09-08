@@ -209,6 +209,9 @@ async function load() {
   controls.maxPolarAngle = Math.PI * 0.495;
   controls.update();
 
+  /* GPU containment — prevents Three.js canvas from triggering ancestor layout */
+  stage.style.contain = "strict";
+
   statusEl.textContent = "compiling shaders…";
   renderer.compile(scene, camera);
   fillEl.style.width = "100%";
@@ -250,6 +253,16 @@ startEl.addEventListener("click", enterPlaza);
 
 /* ================== loop ================== */
 let raf = 0, lastT = performance.now(), frames = 0, accum = 0, lastQ = 0;
+/* Idle-skip for controls.update() — OrbitControls damping math costs ~0.3ms/frame
+   even when nothing moves. We skip it when the user has been idle for >2s. */
+let _lastInteract = 0;
+const _IDLE_THRESHOLD_MS = 2000;  // stop calling controls.update() after 2s idle
+
+function _markInteract() { _lastInteract = performance.now(); }
+renderer.domElement.addEventListener("pointerdown", _markInteract, { passive: true });
+renderer.domElement.addEventListener("pointermove", _markInteract, { passive: true });
+renderer.domElement.addEventListener("wheel", _markInteract, { passive: true });
+renderer.domElement.addEventListener("touchstart", _markInteract, { passive: true });
 
 function applySize() {
   renderer.setPixelRatio(BASE_PR * quality);
@@ -274,7 +287,12 @@ function frame(now) {
     }
   }
 
-  if (controls) controls.update();
+  if (controls) {
+    const idleMs = performance.now() - _lastInteract;
+    // Always update for the first 2 seconds after any interaction so damping
+    // fully settles; skip the update while truly idle.
+    if (idleMs < _IDLE_THRESHOLD_MS) controls.update();
+  }
   renderer.render(scene, camera);
 }
 

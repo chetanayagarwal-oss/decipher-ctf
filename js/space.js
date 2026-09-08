@@ -391,10 +391,35 @@ export function buildSpace(scene, { isMobile = false, envMap = null } = {}) {
   beltGroup.add(rocks);
   root.add(beltGroup);
 
-  function update(nowMs) {
+  /* Shared frustum check — re-used every frame, no allocs */
+  const _frustum = new THREE.Frustum();
+  const _projScreenMatrix = new THREE.Matrix4();
+  const _bsphere = new THREE.Sphere();
+  const _wpos = new THREE.Vector3();   // reused for getWorldPosition — no per-frame allocs
+
+  function update(nowMs, cam) {
     const t = nowMs * 0.001;
-    for (const p of planets) p.userData.mat.uniforms.uTime.value = t;
-    for (const s of spin) s.obj.rotation.y += s.y * 16;
+
+    // Recompute frustum once per frame using the caller's camera.
+    if (cam) {
+      cam.updateMatrixWorld(false);
+      _projScreenMatrix.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+      _frustum.setFromProjectionMatrix(_projScreenMatrix);
+    }
+
+    for (const p of planets) {
+      // Only update shader time + spin if the planet is (potentially) visible
+      const visible = !cam || _frustum.intersectsSphere(
+        _bsphere.set(p.getWorldPosition(_wpos), p.geometry.boundingSphere?.radius ?? 50)
+      );
+      if (visible) p.userData.mat.uniforms.uTime.value = t;
+    }
+    for (const s of spin) {
+      const visible = !cam || _frustum.intersectsSphere(
+        _bsphere.set(s.obj.getWorldPosition(_wpos), 60)
+      );
+      if (visible) s.obj.rotation.y += s.y * 16;
+    }
     stars.material.uniforms.uTime.value = t;
 
     // Rotate the entire asteroid belt as a group — single matrix multiply

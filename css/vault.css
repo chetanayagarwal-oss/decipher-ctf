@@ -26,7 +26,7 @@ html, body {
   touch-action: none;
 }
 
-#canvas-host { position: fixed; inset: 0; }
+#canvas-host { position: fixed; inset: 0; contain: strict; }
 #canvas-host canvas { display: block; width: 100%; height: 100%; }
 
 /* ================= loading screen ================= */
@@ -38,6 +38,7 @@ html, body {
     radial-gradient(700px 350px at 50% 100%, rgba(123, 44, 191, 0.25), transparent 70%),
     linear-gradient(180deg, #10002b, #08010f);
   transition: transform 1.1s cubic-bezier(.7, 0, .2, 1);
+  will-change: transform;
 }
 .ls-top { top: 0; border-bottom: 1px solid var(--line); }
 .ls-bottom {
@@ -54,6 +55,8 @@ html, body {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 26px; text-align: center; padding: 24px;
   transition: opacity .5s ease;
+  will-change: opacity;
+  contain: layout style;
 }
 .loading-screen.revealed .ls-center { opacity: 0; pointer-events: none; }
 

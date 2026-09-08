@@ -13,6 +13,16 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { buildSpace } from "./space.js";
 
+/* ================== Web Worker — OffscreenCanvas ==================
+   drawScreen() and drawMarquee() run off the main thread.
+   Falls back to inline draw if OffscreenCanvas / Worker is unsupported. */
+const WORKER_SUPPORTED = typeof OffscreenCanvas !== "undefined" && typeof Worker !== "undefined";
+let _screenWorker = null;
+let _workerReady = false;
+// Pending bitmaps posted back by the worker
+let _pendingScreenBitmap = null;
+let _pendingMarqueeBitmap = null;
+
 /* "space" (default, the homepage) or "plaza" (the /lnmiit-cp route). */
 const SCENE = window.DECIPHER_SCENE === "plaza" ? "plaza" : "space";
 
@@ -111,6 +121,8 @@ renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = !isMobile;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
+/* GPU containment — prevents Three.js canvas from triggering ancestor layout */
+stage.style.contain = "strict";
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x08010f);
@@ -131,8 +143,11 @@ camera.lookAt(0, CAM.look, 0);
 /* ================== post-processing ================== */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
+// Mobile: bloom at half-resolution — halves the bloom texture fill cost
+const bloomW = isMobile ? Math.ceil(innerWidth / 2) : innerWidth;
+const bloomH = isMobile ? Math.ceil(innerHeight / 2) : innerHeight;
 const bloom = new UnrealBloomPass(
-  new THREE.Vector2(innerWidth, innerHeight),
+  new THREE.Vector2(bloomW, bloomH),
   isMobile ? 0.25 : 0.32,  // calibrated to prevent overblown glow around DECIPHER
   0.38,                     // radius
   0.80                      // threshold — keeps solid white text razor sharp
@@ -220,7 +235,21 @@ function syncReadout() {
 }
 
 /* ---- text helpers ---- */
-const GLYPHS = "!<>-_\\/[]{}=+*^?#01ABCDEF$%&";
+/* Pre-shuffled glyph ring — rotate an index instead of calling Math.random()
+   ~340 times per scramble frame. Single allocation at startup. */
+const GLYPH_SRC = "!<>-_\\/[]{}=+*^?#01ABCDEF$%&";
+const RING_SIZE = 512;
+const GLYPH_RING = new Uint8Array(RING_SIZE);
+(function buildRing() {
+  const n = GLYPH_SRC.length;
+  for (let i = 0; i < RING_SIZE; i++) GLYPH_RING[i] = (Math.random() * n) | 0;
+})();
+let _ringIdx = 0;
+function nextGlyph() {
+  const ch = GLYPH_SRC[GLYPH_RING[_ringIdx]];
+  _ringIdx = (_ringIdx + 1) & (RING_SIZE - 1);
+  return ch;
+}
 let revealCursor = 0; // running char offset while drawing one frame
 
 function scrambled(text) {
@@ -230,7 +259,7 @@ function scrambled(text) {
     const ch = text[i];
     const globalIdx = revealCursor + i;
     if (ch === " ") { out += " "; continue; }
-    out += globalIdx < revealChars ? ch : GLYPHS[(Math.random() * GLYPHS.length) | 0];
+    out += globalIdx < revealChars ? ch : nextGlyph();
   }
   revealCursor += text.length;
   return out;
@@ -898,6 +927,7 @@ let space = null;
 let placeholderGround = null;
 let plazaRoot = null;
 let plazaFade = 0;
+let plazaMaterials = [];   // flat pre-collected array for fast fade updates
 
 /* ================== the plaza ==================
    The real central plaza, exported from Blender and Meshopt-compressed.
@@ -951,6 +981,10 @@ async function loadPlaza() {
     "| placed at y", root.position.y.toFixed(2)
   );
 
+  /* Collect materials into a flat array once — avoids O(n) traverse every
+     fade frame. We set transparent + opacity = 0 here, then the frame loop
+     walks _plazaMaterials (array, not scene graph) to update opacity. */
+  const _plazaMats = [];
   root.traverse(o => {
     if (!o.isMesh) return;
     o.castShadow = false;        // the plaza is scenery; only the cabinet casts
@@ -962,11 +996,13 @@ async function loadPlaza() {
       m.transparent = true;      // so it can fade up
       m.opacity = 0;
       m.envMapIntensity = 0.6;
+      _plazaMats.push(m);
     }
   });
 
   scene.add(root);
   plazaRoot = root;
+  plazaMaterials = _plazaMats;   // store flat array for fast fade updates
 
   // Retire the stand-in floor now that there is real ground.
   if (placeholderGround) {
@@ -1118,13 +1154,47 @@ addEventListener("keydown", e => {
   }
 });
 
-/* cursor feedback */
+/* cursor feedback — debounce: 150ms desktop, 200ms mobile (raycasting is cheap
+   but we don't need sub-6-frame cursor updates for pointer feedback) */
+const HOVER_DEBOUNCE = isMobile ? 200 : 150;
 let lastHover = 0;
 function hoverCheck(now) {
-  if (!live || now - lastHover < 110) return;
+  if (!live || reduceMotion || now - lastHover < HOVER_DEBOUNCE) return;
   lastHover = now;
   ray.setFromCamera(pointer, camera);
   document.body.style.cursor = ray.intersectObjects(clickable, true).length ? "pointer" : "default";
+}
+
+/* ================== Worker boot ==================
+   Spin up the screen worker once fonts are ready (the worker needs
+   the same font names; they're loaded into the document font cache
+   which OffscreenCanvas in the worker can also access). */
+function bootWorker() {
+  if (!WORKER_SUPPORTED) return;
+  try {
+    _screenWorker = new Worker(new URL("./workers/screen.worker.js", import.meta.url), { type: "module" });
+    _screenWorker.onmessage = e => {
+      const msg = e.data;
+      if (msg.type === "ready") { _workerReady = true; }
+      else if (msg.type === "screenBitmap") { _pendingScreenBitmap = msg.bitmap; }
+      else if (msg.type === "marqueeBitmap") { _pendingMarqueeBitmap = msg.bitmap; }
+      // marqueeSkipped: nothing to do
+    };
+    _screenWorker.onerror = err => {
+      console.warn("screen.worker error — falling back to main-thread draw", err);
+      _screenWorker = null;
+    };
+    // Send config + pages (pages are plain objects — structured-clone safe)
+    _screenWorker.postMessage({
+      type: "init",
+      config: C,
+      pages,
+      ruleStart: RULE_START
+    });
+  } catch (err) {
+    console.warn("Worker init failed — falling back to main-thread draw", err);
+    _screenWorker = null;
+  }
 }
 
 /* ================== boot sequence ================== */
@@ -1140,6 +1210,8 @@ async function bootUp() {
         document.fonts.load("46px 'Press Start 2P'")
       ]).catch(() => {});
       await document.fonts.ready.catch(() => {});
+      // Spin up worker after fonts load so it inherits the font cache
+      bootWorker();
     }],
     ["mapping reflections…", async () => {
       const loader = new THREE.CubeTextureLoader().setPath("/assets/cubemap/");
@@ -1237,8 +1309,20 @@ function frame(now) {
   const screenInterval = reveal < 1 ? 40 : 66;
   if (now - lastScreen > screenInterval) {
     lastScreen = now;
-    drawScreen(now);
+    if (_screenWorker && _workerReady) {
+      // Off-thread path: post draw request and apply any bitmap already returned
+      _screenWorker.postMessage({ type: "drawScreen", time: now, page, reveal });
+    } else {
+      // Fallback: draw on main thread
+      drawScreen(now);
+      screenTex.needsUpdate = true;
+    }
+  }
+  // Apply bitmap posted back by worker this frame or last frame
+  if (_pendingScreenBitmap && screenTex) {
+    screenTex.image = _pendingScreenBitmap;
     screenTex.needsUpdate = true;
+    _pendingScreenBitmap = null;
   }
 
   /* marquee redraw — only when cursor blink state or glitch state changes.
@@ -1250,30 +1334,32 @@ function frame(now) {
     _marqueeCursorState = mCursor;
     _marqueeGlitchState = mGlitch;
     lastMarquee = now;
-    drawMarquee(now);
-    if (marqueeTex) marqueeTex.needsUpdate = true;
+    if (_screenWorker && _workerReady) {
+      _screenWorker.postMessage({ type: "drawMarquee", time: now, force: now - lastMarquee > 2000 });
+    } else {
+      drawMarquee(now);
+      if (marqueeTex) marqueeTex.needsUpdate = true;
+    }
+  }
+  if (_pendingMarqueeBitmap && marqueeTex) {
+    marqueeTex.image = _pendingMarqueeBitmap;
+    marqueeTex.needsUpdate = true;
+    _pendingMarqueeBitmap = null;
   }
 
   stepSprings(now);
 
-  if (space) space.update(now);
+  if (space) space.update(now, camera);
 
-  /* fade the plaza up once it has arrived */
+  /* fade the plaza up once it has arrived.
+     plazaMaterials is a pre-collected flat array — no O(n) traverse each frame. */
   if (plazaRoot && plazaFade < 1) {
     plazaFade = Math.min(1, plazaFade + dt / 1400);
     const e = plazaFade * plazaFade * (3 - 2 * plazaFade);   // smoothstep
-    plazaRoot.traverse(o => {
-      if (!o.isMesh) return;
-      const mats = Array.isArray(o.material) ? o.material : [o.material];
-      for (const m of mats) if (m) m.opacity = e;
-    });
+    for (const m of plazaMaterials) m.opacity = e;
     if (plazaFade >= 1) {
       // Opaque again once faded: transparent materials sort per-frame and cost more.
-      plazaRoot.traverse(o => {
-        if (!o.isMesh) return;
-        const mats = Array.isArray(o.material) ? o.material : [o.material];
-        for (const m of mats) if (m) { m.transparent = false; m.opacity = 1; }
-      });
+      for (const m of plazaMaterials) { m.transparent = false; m.opacity = 1; }
     }
   }
 
@@ -1303,13 +1389,18 @@ addEventListener("resize", () => {
   camera.lookAt(0, CAM.look, 0);
   camera.updateProjectionMatrix();
   applySize();
-  bloom.resolution.set(innerWidth, innerHeight);
+  // Keep bloom at half-res on mobile
+  const bw = narrow ? Math.ceil(innerWidth / 2) : innerWidth;
+  const bh = narrow ? Math.ceil(innerHeight / 2) : innerHeight;
+  bloom.resolution.set(bw, bh);
 });
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     cancelAnimationFrame(raf); raf = 0;
     if (ambience) ambience.pause();
+    // Pause worker when tab hidden — no point drawing off-screen
+    if (_screenWorker) _screenWorker.postMessage({ type: "pause" });
   } else if (!raf) {
     lastT = performance.now();
     raf = requestAnimationFrame(frame);
