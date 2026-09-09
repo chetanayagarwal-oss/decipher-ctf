@@ -12,7 +12,7 @@ const DECIPHER = {
   organizer: "Cybersecurity Club",    // TODO: your club name
 
   /* ---- REGISTRATION (placeholder — swap the URL when ready) ---- */
-  registerUrl: "https://decipher2026.tech/teams",  // registration page
+  registerUrl: "https://decipher2026.tech/login",  // registration page
   registerLabel: "REGISTER",
 
   /* ---- WHAT IS A CTF ----
@@ -31,12 +31,12 @@ const DECIPHER = {
 
   /* ---- RULES (placeholder text — replace with your final rules) ---- */
   rules: [
-    { head: "NO ATTACKS",        body: "Do not attack the CTF infrastructure, players, or organizers." },
-    { head: "FLAG SHARING",      body: "Keep flags confidential. Do not share them under any circumstances." },
+    { head: "NO ATTACKS", body: "Do not attack the CTF infrastructure, players, or organizers." },
+    { head: "FLAG SHARING", body: "Keep flags confidential. Do not share them under any circumstances." },
     { head: "PROMPT SUBMISSION", body: "Submit flags immediately upon discovery to secure your points." },
-    { head: "NO COLLABORATION",  body: "Collaborating with individuals outside your team is prohibited." },
-    { head: "NO BRUTE FORCE",    body: "Do not brute-force the scoreboard. Focus on intended methods." },
-    { head: "NO SCANNERS",       body: "Automated scanners generating excessive traffic are banned." }
+    { head: "NO COLLABORATION", body: "Collaborating with individuals outside your team is prohibited." },
+    { head: "NO BRUTE FORCE", body: "Do not brute-force the scoreboard. Focus on intended methods." },
+    { head: "NO SCANNERS", body: "Automated scanners generating excessive traffic are banned." }
   ]
 };
 

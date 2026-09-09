@@ -36,7 +36,7 @@ const storage = {
     try {
       const val = localStorage.getItem(key);
       if (val !== null) return val;
-    } catch (e) {}
+    } catch (e) { }
     try {
       return sessionStorage.getItem(key);
     } catch (e) {
@@ -44,12 +44,12 @@ const storage = {
     }
   },
   set(key, val) {
-    try { localStorage.setItem(key, String(val)); } catch (e) {}
-    try { sessionStorage.setItem(key, String(val)); } catch (e) {}
+    try { localStorage.setItem(key, String(val)); } catch (e) { }
+    try { sessionStorage.setItem(key, String(val)); } catch (e) { }
   },
   remove(key) {
-    try { localStorage.removeItem(key); } catch (e) {}
-    try { sessionStorage.removeItem(key); } catch (e) {}
+    try { localStorage.removeItem(key); } catch (e) { }
+    try { sessionStorage.removeItem(key); } catch (e) { }
   }
 };
 
@@ -65,7 +65,7 @@ const soundBtn = document.getElementById("sound-btn");
 document.querySelectorAll("[data-date-label]").forEach(e => e.textContent = C.eventDateLabel);
 document.querySelectorAll("[data-venue]").forEach(e => e.textContent = C.venue.toUpperCase());
 const registerBtn = document.getElementById("register-btn");
-registerBtn.href = "https://decipher2026.tech/teams";
+registerBtn.href = "https://decipher2026.tech/login";
 registerBtn.target = "_blank";
 registerBtn.rel = "noopener noreferrer";
 registerBtn.textContent = C.registerLabel || "REGISTER";
@@ -76,7 +76,7 @@ if (wordmarkEl) {
     try {
       sessionStorage.removeItem("decipher_entered");
       localStorage.removeItem("decipher_started");
-    } catch (e) {}
+    } catch (e) { }
     storage.remove("decipher_page");
   });
 }
@@ -219,7 +219,7 @@ try {
   if (!isNaN(savedPage) && savedPage >= 0 && savedPage < pages.length) {
     page = savedPage;
   }
-} catch (e) {}
+} catch (e) { }
 
 /* ---- HTML readout beside the cabinet ---- */
 const roEyebrow = document.getElementById("ro-eyebrow");
@@ -376,7 +376,7 @@ function drawScreen(time) {
     const dispText = scrambled(rawText);
     const cursorOn = ((time / 500) | 0) % 2 === 0;
     const textWithCursor = dispText + (cursorOn ? "_" : " ");
-    
+
     const size = 52;
     g.font = `${size}px 'Press Start 2P', monospace`;
     g.textAlign = "center";
@@ -605,7 +605,7 @@ function drawMarquee(time = performance.now()) {
   const sq = 8;     // retro square dot size
   const pad = 36;   // spacing around dot
   const totalSubW = wHack + pad + sq + pad + wExpl + pad + sq + pad + wDeci;
-  
+
   let curX = cx - totalSubW / 2;
   // HACK
   mg.textAlign = "left";
@@ -1049,14 +1049,14 @@ function startAudio() {
         ambience.volume = soundOn ? v : 0;
         if (v >= 0.28) clearInterval(fade);
       }, 90);
-    }).catch(() => {});
+    }).catch(() => { });
     thump = new Audio(srcFor("/assets/audio/thump_hover"));
     thump.volume = 0.45;
   } catch (e) { /* audio is optional */ }
 }
 function click() {
   if (!soundOn || !thump) return;
-  try { thump.currentTime = 0; thump.play().catch(() => {}); } catch (e) {}
+  try { thump.currentTime = 0; thump.play().catch(() => { }); } catch (e) { }
 }
 soundBtn.addEventListener("click", () => {
   soundOn = !soundOn;
@@ -1216,8 +1216,8 @@ async function bootUp() {
         document.fonts.load("700 40px 'JetBrains Mono'"),
         document.fonts.load("116px 'VT323'"),
         document.fonts.load("46px 'Press Start 2P'")
-      ]).catch(() => {});
-      await document.fonts.ready.catch(() => {});
+      ]).catch(() => { });
+      await document.fonts.ready.catch(() => { });
       // Spin up worker after fonts load so it inherits the font cache
       bootWorker();
     }],
@@ -1249,12 +1249,12 @@ async function bootUp() {
   bootStart.hidden = false;
 
   // Only restore directly into the scene if the user refreshed/reloaded while already active in this tab
-  const isReloadInScene = (function() {
+  const isReloadInScene = (function () {
     try {
       // Clear legacy permanent storage key from previous versions
       localStorage.removeItem("decipher_started");
       return sessionStorage.getItem("decipher_entered") === "true";
-    } catch(e) { return false; }
+    } catch (e) { return false; }
   })();
 
   if (isReloadInScene) {
@@ -1268,7 +1268,7 @@ function enterScene() {
   live = true;
   try {
     sessionStorage.setItem("decipher_entered", "true");
-  } catch (e) {}
+  } catch (e) { }
   storage.set("decipher_page", page);
   startAudio();
   click();
@@ -1412,7 +1412,7 @@ document.addEventListener("visibilitychange", () => {
   } else if (!raf) {
     lastT = performance.now();
     raf = requestAnimationFrame(frame);
-    if (ambience && soundOn) ambience.play().catch(() => {});
+    if (ambience && soundOn) ambience.play().catch(() => { });
   }
 });
 
