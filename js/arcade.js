@@ -65,7 +65,7 @@ const soundBtn = document.getElementById("sound-btn");
 document.querySelectorAll("[data-date-label]").forEach(e => e.textContent = C.eventDateLabel);
 document.querySelectorAll("[data-venue]").forEach(e => e.textContent = C.venue.toUpperCase());
 const registerBtn = document.getElementById("register-btn");
-registerBtn.href = "https://decipher2026.tech/login";
+registerBtn.href = "https://decipher2026.tech/register";
 registerBtn.target = "_blank";
 registerBtn.rel = "noopener noreferrer";
 registerBtn.textContent = C.registerLabel || "REGISTER";
