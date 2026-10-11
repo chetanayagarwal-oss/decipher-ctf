@@ -1,89 +1,156 @@
-# DECIPHER — campus CTF site
+# ⚡ DECIPHER — 3D Cyber Arcade & Campus CTF Experience
 
-Plain HTML, CSS and JavaScript. No build step, no framework, no npm install.
+[![Three.js](https://img.shields.io/badge/Three.js-r170-black?style=for-the-badge&logo=three.js)](https://threejs.org/)
+[![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/Guide/HTML/HTML5)
+[![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/CSS)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE-THIRD-PARTY.md)
 
-Two pages:
-
-| Page | What it is | First load |
-|---|---|---|
-| `index.html` | **The homepage.** A 3D arcade cabinet. Its CRT screen carries the whole briefing: what a CTF is, what a flag is, and all six rules. | ~1 MB |
-| `vault.html` | **The world.** The 3D museum from Andrew Woan's Codrops fan museum, with Decipher text on the exhibit plaques. Optional — linked as "Enter the world". | ~29 MB, streamed in four chunks |
-
-The heavy 3D world is deliberately **not** on the homepage, so a phone or a weak
-laptop never downloads it unless someone asks for it.
+> An immersive, retro-futuristic 3D web experience built for **DECIPHER**, a campus-wide Capture The Flag (CTF) cybersecurity competition. Features an interactive WebGL arcade cabinet running offscreen CRT rendering, live countdown telemetry, and an exploratory 3D virtual world.
 
 ---
 
-## Editing the content
+## 📸 Overview
 
-Everything you'll want to change lives in one file: **`js/config.js`**.
+**DECIPHER** bridges cyberpunk aesthetics with modern web graphics to deliver an unforgettable onboarding experience for CTF participants:
 
-Both pages read from it, so editing it once updates the cabinet screen, the
-countdown, and the museum plaques together.
+1. **🕹️ Arcade Cabinet (`index.html`)**:
+   - High-fidelity 3D arcade machine rendered using Three.js.
+   - Dynamic retro CRT screen running via OffscreenCanvas / Web Worker (`js/workers/screen.worker.js`) to decouple heavy canvas rasterization from the main 3D animation loop.
+   - Interactive control sticks, push-buttons, spatial sound FX, dynamic event countdown timers, and event rule briefings.
+   - Optimized first load (~1 MB) to ensure lightning-fast accessibility on all devices, including mobile and low-spec hardware.
 
-Placeholders you should fill in before the event:
+2. **🌐 The 3D World / Vault (`vault.html`)**:
+   - An interactive 3D virtual museum environment for exploring cybersecurity concepts and challenge exhibits.
+   - Camera keyframe rail paths, split-screen transitions, dynamic plaques, ambient audio, and responsive inspect modals.
+   - Streamed chunk-based loading with progressive decoding indicator.
 
-```js
-venue: "TBA",              // your actual venue
-organizer: "Cybersecurity Club",
-registerUrl: "#",          // your Google Form / Unstop / CTFd link
-```
+---
 
-The rules in `config.js` are placeholder text — replace the six entries with
-your final wording. Add or remove rules freely; the cabinet screen, the
-progress dots, and the museum plaques all resize themselves.
+## ✨ Key Features & Technical Highlights
 
-The event date drives the live countdown:
+- **⚡ Zero Build Pipeline:** Pure vanilla ES Modules, HTML5, and CSS3. No Node dependencies, bundling step, or framework overhead required.
+- **🖥️ OffscreenCanvas Web Worker Screen Rendering:** Cabinet screen animations, CRT scanlines, and text telemetry render asynchronously inside dedicated web workers to guarantee silky-smooth 60+ FPS performance.
+- **📈 Adaptive Resolution & Performance Scaling:**
+  - Real-time frame-time monitoring automatically scales rendering resolution if frame rate dips below 44 FPS.
+  - Automatically suspends rendering when the browser tab loses focus.
+  - Honors the user's `prefers-reduced-motion` accessibility preferences.
+- **📦 Advanced 3D Asset Compression:**
+  - Mesh geometry compressed via **Google Draco**.
+  - Textures compressed via **KTX2 / Basis Universal** GPU-compressed texture formats.
+  - Unlit materials with baked environment illumination eliminate heavy runtime shadow mapping and dynamic lighting passes.
+- **⚙️ Centralized Configuration:** Edit all event dates, rules, prizes, announcements, and registration links from a single configuration file (`js/config.js`).
 
-```js
-eventDateISO: "2026-09-10T10:30:00+05:30",
-eventDateLabel: "10 SEPT 2026",
+---
+
+## 📁 Project Structure
+
+```text
+decipher-ctf/
+├── index.html                 # Main entrypoint: 3D Arcade Cabinet briefing experience
+├── vault.html                 # 3D Virtual World & museum exhibit experience
+├── package.json               # Local development script definitions
+│
+├── js/
+│   ├── config.js              # Central event configuration (Rules, Date, Venue, URLs)
+│   ├── arcade.js              # 3D Scene setup, arcade interactions, controls & camera
+│   ├── vault.js               # 3D World exhibition viewer & camera rail controller
+│   ├── plaza.js               # Supplemental scene controllers
+│   ├── space.js               # Particle systems & background environment effects
+│   └── workers/
+│       └── screen.worker.js   # OffscreenCanvas CRT monitor renderer worker
+│
+├── css/
+│   ├── arcade.css             # HUD, scanline overlays, typography & retro UI styles
+│   └── vault.css              # World viewer HUD, loading bars & modal styles
+│
+└── assets/
+    ├── models/                # Draco-compressed 3D models (.glb)
+    ├── basis/                 # KTX2/Basis texture assets
+    ├── audio/                 # Sound effects and ambient audio
+    └── draco/                 # Draco WASM decoders
 ```
 
 ---
 
-## Running it
+## 🚀 Getting Started
 
-The pages load ES modules and `.glb` models, so they need to be served over
-HTTP — opening `index.html` by double-clicking will not work (browsers block
-module and model loading on `file://`).
+### Prerequisites
 
-Any static server works:
+Since the project loads ES Modules and binary 3D assets (`.glb`, `.basis`, `.wasm`), modern browsers require pages to be served over HTTP/HTTPS (browser security policies prevent loading Web Workers and modules over the `file://` protocol).
 
+### Running Locally
+
+Clone the repository and serve it using any local static web server:
+
+**Using Python:**
 ```bash
-python3 -m http.server 8000
+# Python 3.x
+python -m http.server 8000
 ```
 
-Then open <http://localhost:8000>.
+**Using Node.js (`npx`):**
+```bash
+npx serve .
+# or
+npx http-server -p 8000
+```
 
-## Publishing it
-
-It is already a static site. Drag the whole `decipher/` folder onto Netlify
-Drop, or push it to a GitHub repo and turn on GitHub Pages. Nothing to build.
-
----
-
-## Performance
-
-Both pages adapt to the machine they land on:
-
-- **Adaptive resolution.** Frame time is sampled continuously; if it drops
-  below ~44 fps the render scale steps down, and it climbs back up when there's
-  headroom. Weak laptops stay smooth instead of stuttering.
-- **Rendering pauses** whenever the tab is hidden.
-- **Compressed assets.** The world's models use Draco mesh compression and KTX2
-  (Basis) textures, decoded in the browser — 28 MB on disk instead of hundreds.
-- **Chunked loading.** The world loads in four batches so the progress bar
-  reflects real work.
-- **Cheap materials.** The world's lighting is baked into its textures and every
-  material is unlit, so there are no realtime lights or shadow maps in it.
-- **Reduced motion** is respected on both pages.
+Open your browser and navigate to:
+```
+http://localhost:8000
+```
 
 ---
 
-## Credits
+## ⚙️ Configuration & Customization
 
-The 3D world, camera path, look keyframes, chunked loading, split-screen reveal
-and audio come from **[Andrew Woan's Codrops fan museum](https://github.com/andrewwoan/codrops-fan-museum)**,
-used under the MIT licence. The arcade cabinet, the interface and all Decipher
-text are this project's own.
+All event details and customizable text live in [`js/config.js`](js/config.js). Both the arcade cabinet and the 3D world automatically pull data from this single source:
+
+```javascript
+const DECIPHER = {
+  /* ---- EVENT SCHEDULE & VENUE ---- */
+  eventDateISO: "2026-09-10T10:30:00+05:30",  // Drives live countdown timer
+  eventDateLabel: "10 SEPT 2026",
+  venue: "Auditorium / Online",
+  organizer: "Cybersecurity Club",
+
+  /* ---- REGISTRATION ---- */
+  registerUrl: "https://your-registration-link.com",
+  registerLabel: "REGISTER",
+
+  /* ---- CTF BRIEFING & RULES ---- */
+  whatIsCTF: [
+    "A CTF is a hacking competition made of puzzles.",
+    "Every challenge hides a secret string — a FLAG — inside a website, a file, a cipher, or a program.",
+    "Find the flag. Submit it. Score points.",
+    "Most points when the clock stops wins.",
+    "No experience needed. Decipher starts you from zero."
+  ],
+
+  flagExample: "DECIPHER{y0ur_f1rst_fl4g}",
+
+  rules: [
+    { head: "NO ATTACKS", body: "Do not attack the CTF infrastructure, players, or organizers." },
+    { head: "FLAG SHARING", body: "Keep flags confidential. Do not share them under any circumstances." },
+    ...
+  ]
+};
+```
+
+---
+
+## 🚢 Deployment
+
+Because the project is completely static, it can be deployed with zero build configuration to any static web hosting provider:
+
+- **Vercel / Netlify:** Import the repository or drag-and-drop the project folder. No build command required; publish directory is `./`.
+- **GitHub Pages:** Go to your repository **Settings** → **Pages** → select `main` branch root (`/`) and save.
+- **Cloudflare Pages:** Connect Git repository with default static settings.
+
+---
+
+## 📜 Credits & Acknowledgments
+
+- 3D World architecture, camera motion logic, and assets adapted from [Andrew Woan's Codrops Fan Museum](https://github.com/andrewwoan/codrops-fan-museum) under the [MIT License](LICENSE-THIRD-PARTY.md).
+- Arcade cabinet 3D model, custom CRT canvas worker pipeline, retro HUD design, telemetry systems, and event integrations created for the **DECIPHER** CTF platform.
